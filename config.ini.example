@@ -1,0 +1,2 @@
+[Gitlab]
+feed=https://gitlab.com/foo/bar/-/merge_requests.atom?feed_token=xxxxxxxxxxxxxxxxxx&state=opened

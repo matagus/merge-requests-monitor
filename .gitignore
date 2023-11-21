@@ -1,0 +1,6 @@
+.python-version
+TODO.md
+env/
+dist/
+build/
+config.ini
