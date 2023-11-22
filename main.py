@@ -14,21 +14,33 @@ class GitlabNotifierApp(rumps.App):
             name="gitlab_notifier", quit_button=None, icon="media/icon.png", template=True
         )
 
-        config = configparser.ConfigParser()
-        config.read("config.ini")
-        
-        self.feed_url = config["Gitlab"]["feed"]
+        self.feed_url = self.get_feed_url()
     
+        self.refresh_interval_label = "5m"
         self.pending_count = 0
         self.last_updated = None
 
-        self.timer = rumps.Timer(self.refresh, 60 * 5)
+        self.timer = rumps.Timer(
+            self.refresh, self.get_refresh_interval(self.refresh_interval_label)
+        )
         self.timer.start()
 
         self.last_updated_menuitem = rumps.MenuItem("Last updated: Never", key="r")
 
         self.menu = [
             self.last_updated_menuitem,
+            (rumps.MenuItem(
+                f"Refresh Interval: {self.refresh_interval_label}",
+                callback=self.set_refresh_interval), 
+                [
+                    rumps.MenuItem("60s", callback=self.set_refresh_interval),
+                    rumps.MenuItem("5m", callback=self.set_refresh_interval),
+                    rumps.MenuItem("10m", callback=self.set_refresh_interval),
+                    rumps.MenuItem("30m", callback=self.set_refresh_interval),
+                    rumps.MenuItem("1h", callback=self.set_refresh_interval),
+                    rumps.MenuItem("12h", callback=self.set_refresh_interval),
+                ]
+            ),
             rumps.rumps.SeparatorMenuItem(),
             rumps.MenuItem("No pending MRs"),
             rumps.rumps.SeparatorMenuItem(),
@@ -36,6 +48,21 @@ class GitlabNotifierApp(rumps.App):
         ]
 
         self.entries = []
+
+    def get_feed_url(self):
+        config = configparser.ConfigParser()
+        config.read("config.ini") 
+        return config["Gitlab"]["feed"]
+
+    def get_refresh_interval(self, label):
+        return {
+            "60s": 60,
+            "5m": 60 * 5,
+            "10m": 60 * 10,
+            "30m": 60 * 30,
+            "1h": 60 * 60,
+            "12h": 60 * 60 * 12,
+        }[label]
 
     def refresh(self, sender):
         try:
@@ -58,6 +85,9 @@ class GitlabNotifierApp(rumps.App):
                 continue
 
             if key.startswith("No pending MRs") or key.startswith("Last updated") or key.startswith("Quit"):
+                continue
+
+            if key.startswith("Refresh Interval"):
                 continue
 
             self.menu.pop(key)
@@ -93,6 +123,17 @@ class GitlabNotifierApp(rumps.App):
         for entry in self.entries:
             if entry.title == html.escape(sender.title):
                 webbrowser.open_new_tab(entry.link)
+
+    def set_refresh_interval(self, sender):
+        refresh_interval_menu = self.menu["Refresh Interval: 5m"]
+
+        self.refresh_interval = self.get_refresh_interval(sender.title)
+        self.timer.stop()
+        self.timer.interval = self.refresh_interval
+        self.timer.start()
+
+        self.refresh_interval_label = sender.title
+        refresh_interval_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
 
 
 if __name__ == "__main__":

@@ -1,18 +1,19 @@
 from setuptools import setup
 
-APP = ['main.py']
-DATA_FILES = []
+APP = ["main.py"]
+DATA_FILES = ["media/icon.png"]
 OPTIONS = {
-    'argv_emulation': True,
-    'plist': {
-        'LSUIElement': True,
+    "argv_emulation": True,
+    "plist": {
+        "LSUIElement": True,
     },
-    'packages': ['rumps'],
+    "iconfile": "media/icon.png",
+    "packages": ["rumps"],
 }
 
 setup(
     app=APP,
     data_files=DATA_FILES,
-    options={'py2app': OPTIONS},
-    setup_requires=['py2app'],
+    options={"py2app": OPTIONS},
+    setup_requires=["py2app"],
 )
