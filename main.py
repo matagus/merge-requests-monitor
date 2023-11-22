@@ -14,17 +14,16 @@ class GitlabNotifierApp(rumps.App):
             name="gitlab_notifier", quit_button=None, icon="media/icon.png", template=True
         )
 
-        self.feed_url = self.get_feed_url()
-    
+        # initialize variables
+        self.feed_url = self.get_feed_url() 
         self.refresh_interval_label = "5m"
         self.pending_count = 0
         self.last_updated = None
+        self.entries = []
+        self.build_menu()
+        self.start_timer()
 
-        self.timer = rumps.Timer(
-            self.refresh, self.get_refresh_interval(self.refresh_interval_label)
-        )
-        self.timer.start()
-
+    def build_menu(self):
         self.last_updated_menuitem = rumps.MenuItem("Last updated: Never", key="r")
 
         self.menu = [
@@ -47,7 +46,11 @@ class GitlabNotifierApp(rumps.App):
             rumps.MenuItem("Quit", callback=self.quit_application, key="q"),
         ]
 
-        self.entries = []
+    def start_timer(self):
+        self.timer = rumps.Timer(
+            self.refresh, self.get_refresh_interval(self.refresh_interval_label)
+        )
+        self.timer.start()
 
     def get_feed_url(self):
         config = configparser.ConfigParser()
