@@ -1,9 +1,9 @@
 from setuptools import setup
 
 APP = ["main.py"]
-DATA_FILES = ["media/icon.png"]
+DATA_FILES = [("media", ["media/icon.png"]), ("", ["config.ini"])]
 OPTIONS = {
-    "argv_emulation": True,
+    "argv_emulation": False,
     "plist": {
         "LSUIElement": True,
     },
