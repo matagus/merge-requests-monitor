@@ -8,10 +8,13 @@ import feedparser
 import rumps
 
 
+icon_path = "media/icon.png"
+
+
 class GitlabNotifierApp(rumps.App):
     def __init__(self):
         super(GitlabNotifierApp, self).__init__(
-            name="gitlab_notifier", quit_button=None, icon="media/icon.png", template=True
+            name="gitlab_notifier", quit_button=None, icon=icon_path, template=True
         )
 
         # initialize variables
@@ -43,6 +46,7 @@ class GitlabNotifierApp(rumps.App):
             rumps.rumps.SeparatorMenuItem(),
             rumps.MenuItem("No pending MRs"),
             rumps.rumps.SeparatorMenuItem(),
+            rumps.MenuItem("About", callback=self.about),
             rumps.MenuItem("Quit", callback=self.quit_application, key="q"),
         ]
 
@@ -67,6 +71,15 @@ class GitlabNotifierApp(rumps.App):
             "12h": 60 * 60 * 12,
         }[label]
 
+    def is_merge_request(self, title):
+        if title in ["No pending MRs", "Quit", "About"]:
+            return False
+
+        if title.startswith("Refresh Interval")  or title.startswith("Last updated"):
+            return False
+
+        return True
+
     def refresh(self, sender):
         try:
             document = feedparser.parse(self.feed_url)
@@ -86,16 +99,11 @@ class GitlabNotifierApp(rumps.App):
                 key = menuitem.title
             except AttributeError:
                 continue
+            
+            if self.is_merge_request(key):
+                self.menu.pop(key)
 
-            if key.startswith("No pending MRs") or key.startswith("Last updated") or key.startswith("Quit"):
-                continue
-
-            if key.startswith("Refresh Interval"):
-                continue
-
-            self.menu.pop(key)
-
-        last_separator_key = self.menu.keys()[-1]
+        last_separator_key = self.menu.keys()[-2]
 
         for entry in self.entries:
             title = html.unescape(entry.title)
@@ -137,6 +145,17 @@ class GitlabNotifierApp(rumps.App):
 
         self.refresh_interval_label = sender.title
         refresh_interval_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
+
+    @rumps.clicked("About")
+    def about(self, _):
+        rumps.alert(
+            "Gitlab Notifier",
+            "A System Tray app that monitors your merge requests and let you access them quickly.\n\n"
+            "Version 0.1\n\n"
+            "Author: Matias Agustin Mendez <matagus@gmail.com>\n\n"
+            "https://github.com/matagus/gitlab-notifier",
+            icon_path=icon_path
+        )
 
 
 if __name__ == "__main__":
