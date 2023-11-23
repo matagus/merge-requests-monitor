@@ -14,7 +14,7 @@ icon_path = "media/icon.png"
 class GitlabNotifierApp(rumps.App):
     def __init__(self):
         super(GitlabNotifierApp, self).__init__(
-            name="gitlab_notifier", quit_button=None, icon=icon_path, template=True
+            name="gitlab_notifier", title="0", quit_button=None, icon=icon_path, template=True
         )
 
         # initialize variables
