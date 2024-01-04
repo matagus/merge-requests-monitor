@@ -11,10 +11,10 @@ import rumps
 icon_path = "media/icon.png"
 
 
-class GitlabNotifierApp(rumps.App):
+class PullRequestsMonitorApp(rumps.App):
     def __init__(self):
-        super(GitlabNotifierApp, self).__init__(
-            name="gitlab_notifier", title="0", quit_button=None, icon=icon_path, template=True
+        super(PullRequestsMonitorApp, self).__init__(
+            name="pull-requests-monitor", title="0", quit_button=None, icon=icon_path, template=True
         )
 
         # initialize variables
@@ -149,14 +149,14 @@ class GitlabNotifierApp(rumps.App):
     @rumps.clicked("About")
     def about(self, _):
         rumps.alert(
-            "Gitlab Notifier",
+            "Merge Requests Monitor",
             "A System Tray app that monitors your merge requests and let you access them quickly.\n\n"
             "Version 0.1\n\n"
             "Author: Matias Agustin Mendez <matagus@gmail.com>\n\n"
-            "https://github.com/matagus/gitlab-notifier",
+            "https://github.com/matagus/merge-requests-monitor",
             icon_path=icon_path
         )
 
 
 if __name__ == "__main__":
-    GitlabNotifierApp().run()
+    PullRequestsMonitorApp().run()
