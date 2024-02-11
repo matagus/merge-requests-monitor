@@ -25,14 +25,23 @@ jobs:
         pip install rumps==0.4.0
         pip install py2app==0.28.6
         pip install feedparser==6.0.10
-    - name: Build package
+        brew update
+        brew install create-dmg
+    - name: Build Application
       run: |
         cp config.ini.example config.ini
         python setup.py py2app
-        zip -r MergeRequestsMonitor-${{ github.ref_name }}.zip dist/MergeRequestsMonitor.app
+    - name: Build dmg installer
+      run: |
+        mkdir -p dist/dmg
+        cp -r "dist/MergeRequestsMonitor.app" dist/dmg
+        create-dmg --volname "MergeRequestsMonitor" --volicon "media/icon.png" --window-pos 200 120 --window-size 600 300 --icon-size 100 --icon "MergeRequestsMonitor.app" 175 120 --hide-extension "MergeRequestsMonitor.app" --app-drop-link 425 120 "dist/MergeRequestsMonitor-${{ github.ref_name }}.dmg" "dist/dmg/"
+    - name: Generate App.zip
+      run: |
+        cd dist && zip -r MergeRequestsMonitor-${{ github.ref_name }}.zip MergeRequestsMonitor.app
     - uses: ncipollo/release-action@v1
       with:
         draft: true
         allowUpdates: true
         generateReleaseNotes: true
-        artifacts: "MergeRequestsMonitor-${{ github.ref_name }}.zip"
+        artifacts: "dist/MergeRequestsMonitor-${{ github.ref_name }}.zip,dist/MergeRequestsMonitor-${{ github.ref_name }}.dmg"
