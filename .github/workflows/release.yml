@@ -1,0 +1,37 @@
+name: Create Draft Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+    - "v*"
+
+jobs:
+
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4.1.1
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+        cache: "pip"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install rumps==0.4.0
+        pip install py2app==0.28.6
+        pip install feedparser==6.0.10
+    - name: Build package
+      run: |
+        python setup.py py2app
+        zip -r MergeRequestsMonitor-${{ github.ref_name }}.zip dist/MergeRequestsMonitor.app
+    - uses: ncipollo/release-action@v1
+      with:
+        draft: true
+        allowUpdates: true
+        generateReleaseNotes: true
+        artifacts: "MergeRequestsMonitor-${{ github.ref_name }}.zip"

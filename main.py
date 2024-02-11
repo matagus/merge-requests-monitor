@@ -13,12 +13,10 @@ icon_path = "media/icon.png"
 
 class PullRequestsMonitorApp(rumps.App):
     def __init__(self):
-        super(PullRequestsMonitorApp, self).__init__(
-            name="pull-requests-monitor", title="0", quit_button=None, icon=icon_path, template=True
-        )
+        super().__init__(name="pull-requests-monitor", title="0", quit_button=None, icon=icon_path, template=True)
 
         # initialize variables
-        self.feed_url = self.get_feed_url() 
+        self.feed_url = self.get_feed_url()
         self.refresh_interval_label = "5m"
         self.pending_count = 0
         self.last_updated = None
@@ -31,9 +29,8 @@ class PullRequestsMonitorApp(rumps.App):
 
         self.menu = [
             self.last_updated_menuitem,
-            (rumps.MenuItem(
-                f"Refresh Interval: {self.refresh_interval_label}",
-                callback=self.set_refresh_interval), 
+            (
+                rumps.MenuItem(f"Refresh Interval: {self.refresh_interval_label}", callback=self.set_refresh_interval),
                 [
                     rumps.MenuItem("60s", callback=self.set_refresh_interval),
                     rumps.MenuItem("5m", callback=self.set_refresh_interval),
@@ -41,7 +38,7 @@ class PullRequestsMonitorApp(rumps.App):
                     rumps.MenuItem("30m", callback=self.set_refresh_interval),
                     rumps.MenuItem("1h", callback=self.set_refresh_interval),
                     rumps.MenuItem("12h", callback=self.set_refresh_interval),
-                ]
+                ],
             ),
             rumps.rumps.SeparatorMenuItem(),
             rumps.MenuItem("No pending MRs"),
@@ -51,14 +48,12 @@ class PullRequestsMonitorApp(rumps.App):
         ]
 
     def start_timer(self):
-        self.timer = rumps.Timer(
-            self.refresh, self.get_refresh_interval(self.refresh_interval_label)
-        )
+        self.timer = rumps.Timer(self.refresh, self.get_refresh_interval(self.refresh_interval_label))
         self.timer.start()
 
     def get_feed_url(self):
         config = configparser.ConfigParser()
-        config.read("config.ini") 
+        config.read("config.ini")
         return config["Gitlab"]["feed"]
 
     def get_refresh_interval(self, label):
@@ -75,7 +70,7 @@ class PullRequestsMonitorApp(rumps.App):
         if title in ["No pending MRs", "Quit", "About"]:
             return False
 
-        if title.startswith("Refresh Interval")  or title.startswith("Last updated"):
+        if title.startswith("Refresh Interval") or title.startswith("Last updated"):
             return False
 
         return True
@@ -99,7 +94,7 @@ class PullRequestsMonitorApp(rumps.App):
                 key = menuitem.title
             except AttributeError:
                 continue
-            
+
             if self.is_merge_request(key):
                 self.menu.pop(key)
 
@@ -124,7 +119,7 @@ class PullRequestsMonitorApp(rumps.App):
             self.menu["No pending MRs"].hidden = True
 
         self.last_updated_menuitem.title = f"Last updated: {self.last_updated}"
-            
+
     @rumps.clicked("Quit")
     def quit_application(self, sender=None):
         self.timer.stop()
@@ -154,7 +149,7 @@ class PullRequestsMonitorApp(rumps.App):
             "Version 0.1\n\n"
             "Author: Matias Agustin Mendez <matagus@gmail.com>\n\n"
             "https://github.com/matagus/merge-requests-monitor",
-            icon_path=icon_path
+            icon_path=icon_path,
         )
 
 
