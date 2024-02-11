@@ -27,6 +27,7 @@ jobs:
         pip install feedparser==6.0.10
     - name: Build package
       run: |
+        cp config.ini.example config.ini
         python setup.py py2app
         zip -r MergeRequestsMonitor-${{ github.ref_name }}.zip dist/MergeRequestsMonitor.app
     - uses: ncipollo/release-action@v1
