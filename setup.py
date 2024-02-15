@@ -2,7 +2,7 @@ from setuptools import setup
 
 APP = ["main.py"]
 
-DATA_FILES = [("media", ["media/icon.png"]), ("", ["config.ini"])]
+DATA_FILES = [("media", ["media/icon.png"])]
 
 OPTIONS = {
     "argv_emulation": False,
@@ -19,4 +19,10 @@ REQ_LIST = [
     "rumps>=0.4.0",
 ]
 
-setup(app=APP, data_files=DATA_FILES, options={"py2app": OPTIONS}, setup_requires=REQ_LIST, name="MergeRequestsMonitor")
+setup(
+    app=APP,
+    data_files=DATA_FILES,
+    options={"py2app": OPTIONS},
+    setup_requires=REQ_LIST,
+    name="MergeRequestsMonitor",
+)
