@@ -29,7 +29,6 @@ jobs:
         brew install create-dmg
     - name: Build Application
       run: |
-        cp config.ini.example config.ini
         python setup.py py2app
     - name: Build dmg installer
       run: |

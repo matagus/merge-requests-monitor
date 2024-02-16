@@ -12,6 +12,5 @@ coverage.*
 project/
 htmlcov/
 db.sqlite3
-config.ini
 env/
 .python-version
