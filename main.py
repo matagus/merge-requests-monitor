@@ -13,24 +13,40 @@ icon_path = "media/icon.png"
 
 class PullRequestsMonitorApp(rumps.App):
     def __init__(self):
-        super().__init__(name="pull-requests-monitor", title="0", quit_button=None, icon=icon_path, template=True)
+        super().__init__(
+            name="pull-requests-monitor",
+            title="0",
+            quit_button=None,
+            icon=icon_path,
+            template=True,
+        )
 
         # initialize variables
-        self.feed_url = self.get_feed_url()
         self.refresh_interval_label = "5m"
         self.pending_count = 0
         self.last_updated = None
         self.entries = []
+
+        try:
+            self.feed_url = self.get_feed_url()
+        except Exception:
+            # create config file because it doesn't exist
+            self.setup_config()
+            self.feed_url = None
+
         self.build_menu()
         self.start_timer()
 
     def build_menu(self):
-        self.last_updated_menuitem = rumps.MenuItem("Last updated: Never", key="r")
+        self.last_updated_menuitem = rumps.MenuItem("Last updated: Never")
 
         self.menu = [
             self.last_updated_menuitem,
             (
-                rumps.MenuItem(f"Refresh Interval: {self.refresh_interval_label}", callback=self.set_refresh_interval),
+                rumps.MenuItem(
+                    f"Refresh Interval: {self.refresh_interval_label}",
+                    callback=self.set_refresh_interval,
+                ),
                 [
                     rumps.MenuItem("60s", callback=self.set_refresh_interval),
                     rumps.MenuItem("5m", callback=self.set_refresh_interval),
@@ -43,18 +59,31 @@ class PullRequestsMonitorApp(rumps.App):
             rumps.rumps.SeparatorMenuItem(),
             rumps.MenuItem("No pending MRs"),
             rumps.rumps.SeparatorMenuItem(),
+            rumps.MenuItem("Preferences", callback=self.set_preferences),
             rumps.MenuItem("About", callback=self.about),
             rumps.MenuItem("Quit", callback=self.quit_application, key="q"),
         ]
 
     def start_timer(self):
-        self.timer = rumps.Timer(self.refresh, self.get_refresh_interval(self.refresh_interval_label))
+        self.timer = rumps.Timer(
+            self.refresh, self.get_refresh_interval(self.refresh_interval_label)
+        )
         self.timer.start()
 
+    def setup_config(self, feed_url=None):
+        if feed_url is None:
+            feed_url = "https://gitlab.com/<username>/<repo>/-/merge_requests.atom?feed_token=<token>&state=opened"
+
+        with self.open("config.ini", "w") as f:
+            config = configparser.ConfigParser()
+            config["Gitlab"] = {"feed": feed_url, "refresh_interval": "5m"}
+            config.write(f)
+
     def get_feed_url(self):
-        config = configparser.ConfigParser()
-        config.read("config.ini")
-        return config["Gitlab"]["feed"]
+        with self.open("config.ini") as f:
+            config = configparser.ConfigParser()
+            config.read_file(f)
+            return config["Gitlab"]["feed"]
 
     def get_refresh_interval(self, label):
         return {
@@ -67,7 +96,7 @@ class PullRequestsMonitorApp(rumps.App):
         }[label]
 
     def is_merge_request(self, title):
-        if title in ["No pending MRs", "Quit", "About"]:
+        if title in ["No pending MRs", "Quit", "About", "Preferences"]:
             return False
 
         if title.startswith("Refresh Interval") or title.startswith("Last updated"):
@@ -119,6 +148,20 @@ class PullRequestsMonitorApp(rumps.App):
             self.menu["No pending MRs"].hidden = True
 
         self.last_updated_menuitem.title = f"Last updated: {self.last_updated}"
+
+    @rumps.clicked("Preferences")
+    def set_preferences(self, sender):
+        response = rumps.Window(
+            title="Set Preferences",
+            message="Enter your Gitlab's merge requests feed URL:",
+            default_text=self.feed_url,
+            ok="Save",
+            cancel="Cancel",
+        ).run()
+
+        if response.clicked:
+            self.feed_url = response.text
+            self.setup_config(self.feed_url)
 
     @rumps.clicked("Quit")
     def quit_application(self, sender=None):

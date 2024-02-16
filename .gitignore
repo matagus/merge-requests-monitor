@@ -5,6 +5,7 @@ local_settings.py
 TODO
 build/
 dist/
+.eggs/
 .tox
 .coverage
 coverage.*
