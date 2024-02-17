@@ -21,7 +21,7 @@ REQ_LIST = [
 
 APP_NAME = "Merge Requests Monitor"
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 DESCRIPTION = "A System Tray app that monitors your merge requests and let you access them quickly."
 
