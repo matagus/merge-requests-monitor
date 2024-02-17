@@ -7,13 +7,17 @@ from datetime import datetime
 import feedparser
 import rumps
 
-from setup import APP_NAME, VERSION, DESCRIPTION, ICON_PATH
+from __about__ import __version__
 
+APP_NAME = "Merge Requests Monitor"
+VERSION = __version__
+DESCRIPTION = "A System Tray app that monitors your merge requests and let you access them quickly."
+ICON_PATH = "media/icon.png"
 DEFAULT_REFRESH_INTERVAL = "5m"
 DEFAULT_FEED_URL = "https://gitlab.com/<username>/<repo>/-/merge_requests.atom?feed_token=<token>&state=opened"
 
 
-class PullRequestsMonitorApp(rumps.App):
+class MergeRequestsMonitorApp(rumps.App):
     def __init__(self):
         super().__init__(
             name=APP_NAME,
@@ -165,4 +169,4 @@ class PullRequestsMonitorApp(rumps.App):
 
 
 if __name__ == "__main__":
-    PullRequestsMonitorApp().run()
+    MergeRequestsMonitorApp().run()
