@@ -118,17 +118,18 @@ class MergeRequestsMonitorApp(rumps.App):
 
     def refresh(self, sender):
         # retrieve the feed entries
-        try:
-            document = feedparser.parse(self.feed_url)
-        except Exception:
-            return
+        document = feedparser.parse(self.feed_url)
 
-        self.merge_requests = document.entries
-        self.last_updated = datetime.now().strftime("%H:%M")
+        if document.bozo:
+            self.title = "⚠️"
 
-        # rebuild the menu
-        self.build_menu()
-        self.update_title()
+        else:
+            self.merge_requests = document.entries
+            self.last_updated = datetime.now().strftime("%H:%M")
+
+            # rebuild the menu
+            self.build_menu()
+            self.update_title()
 
     @rumps.clicked("Preferences")
     def set_preferences(self, sender):
