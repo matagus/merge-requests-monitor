@@ -62,7 +62,7 @@ class MergeRequestsMonitorApp(rumps.App):
             self.menu.add(rumps.MenuItem("No pending MRs"))
         else:
             for merge_request in self.merge_requests:
-                title = html.unescape(merge_request.title)
+                title = html.escape(merge_request.title)
                 self.menu.add(rumps.MenuItem(title, callback=self.open_url))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
@@ -144,6 +144,7 @@ class MergeRequestsMonitorApp(rumps.App):
         if response.clicked:
             self.feed_url = response.text
             self.save_config()
+            self.refresh(None)
 
     @rumps.clicked("Quit")
     def quit_application(self, sender=None):
