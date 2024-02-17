@@ -1,5 +1,7 @@
 from setuptools import setup
 
+from __about__ import __version__
+
 APP = ["main.py"]
 
 DATA_FILES = [("media", ["media/icon.png"])]
@@ -25,6 +27,6 @@ setup(
     data_files=DATA_FILES,
     options={"py2app": OPTIONS},
     setup_requires=REQ_LIST,
-    name="MergeRequesMonitor",
-    version="0.1",
+    name="MergeRequestsMonitor",
+    version=__version__,
 )
