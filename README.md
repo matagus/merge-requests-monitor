@@ -63,3 +63,4 @@ Acknowledgements
  - [rumps](https://github.com/jaredks/rumps): Ridiculously uncomplicated macOS Python statusbar apps
  - [py2app](https://github.com/ronaldoussoren/py2app): a Python setuptools command which will allow you to make standalone Mac OS X application bundles.
  - README.md file was generated using [readme.so](https://readme.so/editor)
+ - Icon by [Remix Design](https://github.com/Remix-Design/RemixIcon)
