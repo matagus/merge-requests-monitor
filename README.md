@@ -2,7 +2,25 @@
 
 A System Tray app for Mac OSX that monitors your open merge requests and let you access them quickly. So far it only supports Gitlab's pull requests.
 
-![Screenshot of the app in the system tray displaying your open merge requests](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/1.png)
+![Screenshot of the app in the system tray displaying your open merge requests](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/app1.png)
+
+## Usage
+
+First configure your Gitlab's feed url going to `Preferences` menu:
+
+![Preferences](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/preferences.png)
+
+Choose the desired refresh frequency:
+
+![Refresh Frequency](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/refresh-frequency.png)
+
+You're all set! Now you can click on any of the merge requests listed:
+
+![Opening a merge request](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/merge-request-open.png)
+
+to open it in your default browser:
+
+![a sample merge request](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/merge-request-gitlab.png)
 
 
 ## Installation
@@ -12,10 +30,6 @@ Download the latest DMG installer file from [Releases section](https://github.co
 **IMPORTANT**: Before running the app, please go to `System Preferences` --> `Privacy & Security` and allow
 `"MergeRequestsMonitor"` app to be executed. This is a necessary step since by default MacOS won't allow you to run any
 app you download from places other than the App Store.
-
-## Configuration
-
-(TO-DO)
 
 ## Build & run
 
@@ -36,8 +50,6 @@ And the just run the app:
 
 ## Roadmap
 
-- Handle exceptions for feed retrieval + config parsing
-- Settings --> Configure feed
 - Add support for Github Pull Requests
 - Have a new separate menu sections for draft merge request
 - Notifications
@@ -48,6 +60,8 @@ See [Milestones](https://github.com/matagus/merge-requests-monitor/milestones) f
 ## Authors.
 
 - [@matagus](https://www.github.com/matagus)
+
+![About](https://raw.githubusercontent.com/matagus/merge-requests-monitor/main/screenshots/about.png)
 
 
 ## License
@@ -63,3 +77,4 @@ Acknowledgements
  - [rumps](https://github.com/jaredks/rumps): Ridiculously uncomplicated macOS Python statusbar apps
  - [py2app](https://github.com/ronaldoussoren/py2app): a Python setuptools command which will allow you to make standalone Mac OS X application bundles.
  - README.md file was generated using [readme.so](https://readme.so/editor)
+ - Icon by [Remix Design](https://github.com/Remix-Design/RemixIcon)

@@ -27,18 +27,15 @@ class MergeRequestsMonitorApp(rumps.App):
             template=True,
         )
 
-        # initialize variables
-        self.refresh_interval_label = DEFAULT_REFRESH_INTERVAL
+        # initialize default variables & loan config values
         self.last_updated = "Never"
         self.merge_requests = []
 
-        try:
-            self.feed_url = self.get_feed_url()
-        except Exception:
-            # create config file because it doesn't exist
-            self.setup_config()
-            self.feed_url = None
+        config = self.get_or_create_config()
+        self.refresh_interval_label = config["refresh_interval"]
+        self.feed_url = config["feed"]
 
+        # make this app do what it must do!
         self.build_menu()
         self.update_title()
         self.start_timer()
@@ -65,7 +62,7 @@ class MergeRequestsMonitorApp(rumps.App):
             self.menu.add(rumps.MenuItem("No pending MRs"))
         else:
             for merge_request in self.merge_requests:
-                title = html.unescape(merge_request.title)
+                title = html.escape(merge_request.title)
                 self.menu.add(rumps.MenuItem(title, callback=self.open_url))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
@@ -79,23 +76,35 @@ class MergeRequestsMonitorApp(rumps.App):
         self.timer = rumps.Timer(self.refresh, freq_interval)
         self.timer.start()
 
-    def setup_config(self, feed_url=None):
-        if feed_url is None:
-            feed_url = DEFAULT_FEED_URL
-
+    def save_config(self):
         with self.open("config.ini", "w") as f:
             config = configparser.ConfigParser()
             config["Gitlab"] = {
-                "feed": feed_url,
-                "refresh_interval": DEFAULT_REFRESH_INTERVAL,
+                "feed": self.feed_url,
+                "refresh_interval": self.refresh_interval_label,
             }
             config.write(f)
 
-    def get_feed_url(self):
-        with self.open("config.ini") as f:
-            config = configparser.ConfigParser()
-            config.read_file(f)
-            return config["Gitlab"]["feed"]
+    def get_or_create_config(self):
+        def _get_config():
+            with self.open("config.ini") as f:
+                config.read_file(f)
+                return config["Gitlab"]
+
+        config = configparser.ConfigParser()
+
+        try:
+            return _get_config()
+
+        except FileNotFoundError:
+            with self.open("config.ini", "w") as f:
+                config["Gitlab"] = {
+                    "feed": DEFAULT_FEED_URL,
+                    "refresh_interval": DEFAULT_REFRESH_INTERVAL,
+                }
+                config.write(f)
+
+            return _get_config()
 
     def get_refresh_interval(self, label):
         return {
@@ -109,17 +118,18 @@ class MergeRequestsMonitorApp(rumps.App):
 
     def refresh(self, sender):
         # retrieve the feed entries
-        try:
-            document = feedparser.parse(self.feed_url)
-        except Exception:
-            return
+        document = feedparser.parse(self.feed_url)
 
-        self.merge_requests = document.entries
-        self.last_updated = datetime.now().strftime("%H:%M")
+        if document.bozo:
+            self.title = "⚠️"
 
-        # rebuild the menu
-        self.build_menu()
-        self.update_title()
+        else:
+            self.merge_requests = document.entries
+            self.last_updated = datetime.now().strftime("%H:%M")
+
+            # rebuild the menu
+            self.build_menu()
+            self.update_title()
 
     @rumps.clicked("Preferences")
     def set_preferences(self, sender):
@@ -133,7 +143,8 @@ class MergeRequestsMonitorApp(rumps.App):
 
         if response.clicked:
             self.feed_url = response.text
-            self.setup_config(self.feed_url)
+            self.save_config()
+            self.refresh(None)
 
     @rumps.clicked("Quit")
     def quit_application(self, sender=None):
@@ -155,6 +166,7 @@ class MergeRequestsMonitorApp(rumps.App):
 
         self.refresh_interval_label = sender.title
         refresh_interval_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
+        self.save_config()
 
     @rumps.clicked("About")
     def about(self, _):
