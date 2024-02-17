@@ -36,8 +36,6 @@ And the just run the app:
 
 ## Roadmap
 
-- Handle exceptions for feed retrieval + config parsing
-- Settings --> Configure feed
 - Add support for Github Pull Requests
 - Have a new separate menu sections for draft merge request
 - Notifications
