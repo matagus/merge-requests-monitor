@@ -19,10 +19,22 @@ REQ_LIST = [
     "rumps>=0.4.0",
 ]
 
-setup(
-    app=APP,
-    data_files=DATA_FILES,
-    options={"py2app": OPTIONS},
-    setup_requires=REQ_LIST,
-    name="MergeRequestsMonitor",
-)
+APP_NAME = "Merge Requests Monitor"
+
+VERSION = "0.1.0"
+
+DESCRIPTION = "A System Tray app that monitors your merge requests and let you access them quickly."
+
+ICON_PATH = "media/icon.png"
+
+
+if __name__ == "__main__":
+    setup(
+        app=APP,
+        data_files=DATA_FILES,
+        options={"py2app": OPTIONS},
+        setup_requires=REQ_LIST,
+        name=APP_NAME,
+        version=VERSION,
+        description=DESCRIPTION,
+    )
