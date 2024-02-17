@@ -127,7 +127,7 @@ class PullRequestsMonitorApp(rumps.App):
             if self.is_merge_request(key):
                 self.menu.pop(key)
 
-        last_separator_key = self.menu.keys()[-2]
+        last_separator_key = self.menu.keys()[-3]
 
         for entry in self.entries:
             title = html.unescape(entry.title)
