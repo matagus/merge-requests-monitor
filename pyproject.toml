@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "merge-requests-monitor"
+dynamic = ["version"]
+description = "A System Tray app for Mac OSX that monitors your open merge requests and let you access them quickly. So far it only supports Gitlab's pull requests."
+readme = "README.md"
+license = "GPL-3.0"
+authors = [
+    { name = "Agustin Mendez", email = "matagus@gmail.com" },
+]
+keywords = ["gitlab", "merge requests", "system tray", "mac osx", "python", "py2app"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Natural Language :: English",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development",
+]
+dependencies = [
+  "feedparser==6.0.10",
+  "py2app==0.28.6",
+  "rumps==0.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/matagus/merge-requests-monitor"
+Issues = "https://github.com/matagus/merge-requests-monitor/issues"
+Changelog = "https://github.com/matagus/merge-requests-monitor/releases"
+Repository = "https://github.com/matagus/merge-requests-monitor"
+
+[tool.hatch.version]
+path = "__about__.py"
+
+[tool.hatch.envs.default]
+dependencies = [
+    "ipython", "ipdb"
+]
+
+[tool.hatch.envs.default.scripts]
+app = "python main.py"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[tool.hatch.envs.test.scripts]
+app = "python main.py"
+
+[tool.ruff]
+line-length = 120
+
+[tool.black]
+line-length = 120
