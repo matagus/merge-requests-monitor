@@ -61,6 +61,9 @@ class MergeRequestsMonitorApp(rumps.App):
         if len(self.merge_requests) == 0:
             self.menu.add(rumps.MenuItem("No pending MRs"))
         else:
+            # This acts as section title
+            self.menu.add(rumps.MenuItem("Merge Requests"))
+
             for merge_request in self.merge_requests:
                 title = html.escape(merge_request.title)
                 self.menu.add(rumps.MenuItem(title, callback=self.open_url))
