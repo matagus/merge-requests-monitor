@@ -62,10 +62,10 @@ Notice it might take a few seconds for hatch to build and setup an environment :
 
 ## Roadmap
 
+- Contexts: work, personal, etc
 - Add support for Github Pull Requests
-- Have a new separate menu sections for draft merge request
 - Notifications
-- Publish it @ the App Store
+- Maybe: publish it @ the App Store
 
 See [Milestones](https://github.com/matagus/merge-requests-monitor/milestones) for more details about the roadmap.
 
