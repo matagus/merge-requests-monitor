@@ -85,6 +85,7 @@ Acknowledgements
 ================
 
  - [Two steps to turn a Python file to a macOS installer](https://gist.github.com/Kvnbbg/84871ae4d642c2dd896e0423471b1b52) helped me quickly understand how to build a DMG using `create-dmg`.
+ - [Understanding setup.py, setup.cfg and pyproject.toml in Python](https://ianhopkinson.org.uk/2022/02/understanding-setup-py-setup-cfg-and-pyproject-toml-in-python/)
  - [create-dmg](https://github.com/create-dmg/create-dmg): A shell script to build fancy DMGs (macOs app installer)
  - [rumps](https://github.com/jaredks/rumps): Ridiculously uncomplicated macOS Python statusbar apps
  - [py2app](https://github.com/ronaldoussoren/py2app): a Python setuptools command which will allow you to make standalone Mac OS X application bundles.
