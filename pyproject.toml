@@ -3,11 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "merge-requests-monitor"
+name = "MergeRequestsMonitor"
 dynamic = ["version"]
 description = "A System Tray app for Mac OSX that monitors your open merge requests and let you access them quickly. So far it only supports Gitlab's pull requests."
 readme = "README.md"
-license = "GPL-3.0"
 authors = [
     { name = "Agustin Mendez", email = "matagus@gmail.com" },
 ]
