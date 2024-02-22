@@ -48,6 +48,18 @@ And the just run the app:
 
 **TIP**: Move the above `.app` bundle to `/Applications` folder if you want to run it as any other install app.
 
+## Running as a Python app
+
+If you don't want to build the MacOS app, you still can run this as a simple Python script. You need
+[hatch](https://hatch.pypa.io/latest/install/) installed. then just:
+
+```bash
+hatch run app
+```
+
+Notice it might take a few seconds for hatch to build and setup an environment :)
+
+
 ## Roadmap
 
 - Add support for Github Pull Requests
