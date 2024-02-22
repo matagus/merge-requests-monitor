@@ -61,12 +61,27 @@ class MergeRequestsMonitorApp(rumps.App):
         if len(self.merge_requests) == 0:
             self.menu.add(rumps.MenuItem("No pending MRs"))
         else:
-            # This acts as section title
-            self.menu.add(rumps.MenuItem("Merge Requests"))
+            draft_merge_requests = [mr for mr in self.merge_requests if "Draft: " in mr.title]
+            merge_requests = [mr for mr in self.merge_requests if "Draft: " not in mr.title]
 
-            for merge_request in self.merge_requests:
-                title = html.escape(merge_request.title)
-                self.menu.add(rumps.MenuItem(title, callback=self.open_url))
+            if len(merge_requests) > 0:
+                # This acts as section title
+                self.menu.add(rumps.MenuItem("Merge Requests"))
+
+                for merge_request in merge_requests:
+                    title = html.escape(merge_request.title)
+                    self.menu.add(rumps.MenuItem(title, callback=self.open_url))
+
+            if len(merge_requests) > 0 and len(draft_merge_requests) > 0:
+                self.menu.add(rumps.rumps.SeparatorMenuItem())
+
+            if len(draft_merge_requests) > 0:
+                # This acts as section title
+                self.menu.add(rumps.MenuItem("Draft Merge Requests"))
+
+                for merge_request in draft_merge_requests:
+                    title = html.escape(merge_request.title)
+                    self.menu.add(rumps.MenuItem(title, callback=self.open_url))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
         self.menu.add(rumps.MenuItem("Preferences", callback=self.set_preferences))
@@ -116,7 +131,8 @@ class MergeRequestsMonitorApp(rumps.App):
             "10m": 60 * 10,
             "30m": 60 * 30,
             "1h": 60 * 60,
-            "12h": 60 * 60 * 12,
+            "3h": 60 * 60 * 3,
+            "6h": 60 * 60 * 12,
         }[label]
 
     def refresh(self, sender):
@@ -160,7 +176,10 @@ class MergeRequestsMonitorApp(rumps.App):
                 webbrowser.open_new_tab(merge_req.link)
 
     def set_refresh_interval(self, sender):
+        sender.state = 1  # set the selected item as checked
         refresh_interval_menu = self.menu.values()[0]
+
+        print(refresh_interval_menu.__dict__)
 
         self.refresh_interval = self.get_refresh_interval(sender.title)
         self.timer.stop()
