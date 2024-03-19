@@ -69,7 +69,7 @@ class MergeRequestsMonitorApp(rumps.App):
                 self.menu.add(rumps.MenuItem("Merge Requests"))
 
                 for merge_request in merge_requests:
-                    title = html.escape(merge_request.title)
+                    title = html.unescape(merge_request.title)
                     self.menu.add(rumps.MenuItem(title, callback=self.open_url))
 
             if len(merge_requests) > 0 and len(draft_merge_requests) > 0:
@@ -80,7 +80,7 @@ class MergeRequestsMonitorApp(rumps.App):
                 self.menu.add(rumps.MenuItem("Draft Merge Requests"))
 
                 for merge_request in draft_merge_requests:
-                    title = html.escape(merge_request.title)
+                    title = html.unescape(merge_request.title)
                     self.menu.add(rumps.MenuItem(title, callback=self.open_url))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
@@ -172,7 +172,7 @@ class MergeRequestsMonitorApp(rumps.App):
 
     def open_url(self, sender):
         for merge_req in self.merge_requests:
-            if merge_req.title == html.escape(sender.title):
+            if html.unescape(merge_req.title) == sender.title:
                 webbrowser.open_new_tab(merge_req.link)
 
     def set_refresh_interval(self, sender):
