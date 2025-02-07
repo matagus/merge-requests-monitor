@@ -33,7 +33,11 @@ class MergeRequestsMonitorApp(rumps.App):
 
         config = self.get_or_create_config()
         self.refresh_interval_label = config["refresh_interval"]
-        self.feed_url = config["feed"]
+        try:
+            self.feed_urls = config["feeds"].split(",")
+        except KeyError:
+            # support for older versions which only has a single feed
+            self.feed_urls = [config["feed"]]
 
         # make this app do what it must do!
         self.build_menu()
@@ -98,7 +102,7 @@ class MergeRequestsMonitorApp(rumps.App):
         with self.open("config.ini", "w") as f:
             config = configparser.ConfigParser()
             config["Gitlab"] = {
-                "feed": self.feed_url,
+                "feeds": ",".join(self.feed_urls),
                 "refresh_interval": self.refresh_interval_label,
             }
             config.write(f)
@@ -117,7 +121,7 @@ class MergeRequestsMonitorApp(rumps.App):
         except FileNotFoundError:
             with self.open("config.ini", "w") as f:
                 config["Gitlab"] = {
-                    "feed": DEFAULT_FEED_URL,
+                    "feeds": f"{DEFAULT_FEED_URL}\n",
                     "refresh_interval": DEFAULT_REFRESH_INTERVAL,
                 }
                 config.write(f)
@@ -136,32 +140,31 @@ class MergeRequestsMonitorApp(rumps.App):
         }[label]
 
     def refresh(self, sender):
-        # retrieve the feed entries
-        document = feedparser.parse(self.feed_url)
+        self.merge_requests = []
+        for feed_url in self.feed_urls:
+            document = feedparser.parse(feed_url)
+            if document.bozo:
+                self.title = "⚠️"
+                return
+            else:
+                self.merge_requests.extend(document.entries)
 
-        if document.bozo:
-            self.title = "⚠️"
-
-        else:
-            self.merge_requests = document.entries
-            self.last_updated = datetime.now().strftime("%H:%M")
-
-            # rebuild the menu
-            self.build_menu()
-            self.update_title()
+        self.last_updated = datetime.now().strftime("%H:%M")
+        self.build_menu()
+        self.update_title()
 
     @rumps.clicked("Preferences")
     def set_preferences(self, sender):
         response = rumps.Window(
             title="Set Preferences",
-            message="Enter your Gitlab's merge requests feed URL:",
-            default_text=self.feed_url,
+            message="Enter your Gitlab's merge requests feed URLs (comma-separated):",
+            default_text=",".join(self.feed_urls),
             ok="Save",
             cancel="Cancel",
         ).run()
 
         if response.clicked:
-            self.feed_url = response.text
+            self.feed_urls = [url.strip() for url in response.text.split(",")]
             self.save_config()
             self.refresh(None)
 
