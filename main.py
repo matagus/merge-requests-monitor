@@ -182,8 +182,6 @@ class MergeRequestsMonitorApp(rumps.App):
         sender.state = 1  # set the selected item as checked
         refresh_interval_menu = self.menu.values()[0]
 
-        print(refresh_interval_menu.__dict__)
-
         self.refresh_interval = self.get_refresh_interval(sender.title)
         self.timer.stop()
         self.timer.interval = self.refresh_interval
