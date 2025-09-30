@@ -28,8 +28,4 @@ setup(
     install_requires=REQ_LIST,
     name="MergeRequestsMonitor",
     version=__version__,
-    dylib_excludes=[
-        "/Library/Frameworks/Python.framework/Versions/3.13/Frameworks/Tcl.framework",
-        "/Library/Frameworks/Python.framework/Versions/3.13/Frameworks/Tk.framework",
-    ],
 )
