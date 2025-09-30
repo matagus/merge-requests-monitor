@@ -17,8 +17,7 @@ OPTIONS = {
 
 REQ_LIST = [
     "feedparser==6.0.12",
-    "py2app>=0.28.8",
-    "rumps>=0.4.0",
+    "rumps==0.4.0",
 ]
 
 setup(
@@ -26,7 +25,7 @@ setup(
     include=["__about__"],
     data_files=DATA_FILES,
     options={"py2app": OPTIONS},
-    setup_requires=REQ_LIST,
+    install_requires=REQ_LIST,
     name="MergeRequestsMonitor",
     version=__version__,
 )
