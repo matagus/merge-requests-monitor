@@ -16,7 +16,7 @@ OPTIONS = {
 }
 
 REQ_LIST = [
-    "feedparser==6.0.10",
+    "feedparser==6.0.12",
     "py2app>=0.28.6",
     "rumps>=0.4.0",
 ]

@@ -18,15 +18,15 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: English",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
 ]
 dependencies = [
-  "feedparser==6.0.10",
+  "feedparser==6.0.12",
   "py2app==0.28.6",
   "rumps==0.4.0",
 ]
@@ -49,7 +49,7 @@ dependencies = [
 app = "python main.py"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [tool.hatch.envs.test.scripts]
 app = "python main.py"
@@ -58,4 +58,8 @@ app = "python main.py"
 line-length = 120
 
 [tool.black]
+line-length = 120
+
+[tool.hatch.build.targets.wheel]
+packages = ["mergerequestsmonitor"]
 line-length = 120
