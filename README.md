@@ -60,6 +60,23 @@ hatch run app
 Notice it might take a few seconds for hatch to build and setup an environment :)
 
 
+## Testing
+
+The project includes a comprehensive test suite with 26 tests covering all functionality.
+
+### Run all tests
+```bash
+hatch run test:test
+```
+
+### Run tests with coverage report
+```bash
+hatch run test:cov
+```
+
+For detailed information about test coverage and testing patterns, see [tests/README.md](tests/README.md).
+
+
 ## Roadmap
 
 - Contexts: work, personal, etc

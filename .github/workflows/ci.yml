@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 2
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Run tests with Hatch
+        run: hatch run test.py${{ matrix.python-version }}:test
+
+      - name: Generate coverage report
+        run: hatch run test.py${{ matrix.python-version }}:cov
+
+  pre-commit:
+    name: Pre-commit Hooks
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1

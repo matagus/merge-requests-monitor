@@ -11,6 +11,7 @@ dist/
 coverage.*
 project/
 htmlcov/
+.pytest_cache/
 db.sqlite3
 env/
 .python-version
