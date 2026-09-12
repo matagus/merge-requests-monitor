@@ -3,6 +3,11 @@ color = "687DEA"
 name = "accessibility"
 description = "Accessibility issues"
 
+[admin]
+color = "2E6BAB"
+name = "admin"
+description = "Admin related issue"
+
 ["blocked/needs-investigation"]
 color = "BD134F"
 name = "blocked/needs-investigation"
