@@ -40,7 +40,7 @@ class TestMergeRequestsMonitorApp:
         assert app.get_refresh_interval("30m") == 1800
         assert app.get_refresh_interval("1h") == 3600
         assert app.get_refresh_interval("3h") == 10800
-        assert app.get_refresh_interval("6h") == 43200
+        assert app.get_refresh_interval("6h") == 21600
 
     def test_update_title_no_merge_requests(self):
         """Test title shows 0 when no merge requests"""

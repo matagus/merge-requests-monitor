@@ -138,7 +138,7 @@ class MergeRequestsMonitorApp(rumps.App):
             "30m": 60 * 30,
             "1h": 60 * 60,
             "3h": 60 * 60 * 3,
-            "6h": 60 * 60 * 12,
+            "6h": 60 * 60 * 6,
         }[label]
 
     def refresh(self, sender):
