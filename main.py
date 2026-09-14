@@ -30,6 +30,8 @@ class MergeRequestsMonitorApp(rumps.App):
         # initialize default variables & loan config values
         self.last_updated = "Never"
         self.merge_requests = []
+        # per feed_url conditional GET validators (ETag / Last-Modified) and last good entries
+        self.feed_cache = {}
 
         config = self.get_or_create_config()
         self.refresh_interval_label = config["refresh_interval"]
@@ -142,12 +144,23 @@ class MergeRequestsMonitorApp(rumps.App):
     def refresh(self, sender):
         self.merge_requests = []
         for feed_url in self.feed_urls:
-            document = feedparser.parse(feed_url)
+            cached = self.feed_cache.setdefault(feed_url, {"etag": None, "modified": None, "entries": []})
+            document = feedparser.parse(feed_url, etag=cached["etag"], modified=cached["modified"])
+
+            # the server honoured If-None-Match / If-Modified-Since: no body was sent, so reuse
+            # what we already have instead of dropping this feed's merge requests.
+            if document.get("status") == 304:
+                self.merge_requests.extend(cached["entries"])
+                continue
+
             if document.bozo:
                 self.title = "⚠️"
                 return
-            else:
-                self.merge_requests.extend(document.entries)
+
+            cached["etag"] = document.get("etag") or cached["etag"]
+            cached["modified"] = document.get("modified") or cached["modified"]
+            cached["entries"] = list(document.entries)
+            self.merge_requests.extend(cached["entries"])
 
         self.last_updated = datetime.now().strftime("%H:%M")
         self.build_menu()
