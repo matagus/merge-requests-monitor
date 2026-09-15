@@ -1,8 +1,11 @@
 import configparser
 import html
+import json
+import os
 import webbrowser
 
 from datetime import datetime
+from types import SimpleNamespace
 
 import feedparser
 import rumps
@@ -15,6 +18,8 @@ DESCRIPTION = "A System Tray app that monitors your merge requests and let you a
 ICON_PATH = "media/icon.png"
 DEFAULT_REFRESH_INTERVAL = "5m"
 DEFAULT_FEED_URL = "https://gitlab.com/<username>/<repo>/-/merge_requests.atom?feed_token=<token>&state=opened"
+FEED_CACHE_FILE = "feed_cache.json"
+FEED_CACHE_VERSION = 1
 
 
 class MergeRequestsMonitorApp(rumps.App):
@@ -30,6 +35,11 @@ class MergeRequestsMonitorApp(rumps.App):
         # initialize default variables & loan config values
         self.last_updated = "Never"
         self.merge_requests = []
+        # conditional GET validators (ETag / Last-Modified) plus the entries they were fetched
+        # with, per feed url. Kept on disk so a restart or a crash does not turn into a full
+        # re-download of every feed.
+        self.feed_cache = self.load_feed_cache()
+        self.saved_feed_cache = None
 
         config = self.get_or_create_config()
         self.refresh_interval_label = config["refresh_interval"]
@@ -136,22 +146,99 @@ class MergeRequestsMonitorApp(rumps.App):
             "30m": 60 * 30,
             "1h": 60 * 60,
             "3h": 60 * 60 * 3,
-            "6h": 60 * 60 * 12,
+            "6h": 60 * 60 * 6,
         }[label]
+
+    def feed_cache_path(self, filename=FEED_CACHE_FILE):
+        """Absolute path of a file inside this app's Application Support folder."""
+        return os.path.join(self._application_support, filename)
+
+    def feed_cache_payload(self):
+        """JSON serializable view of the cache, pruned to the feeds currently configured."""
+        return {
+            "version": FEED_CACHE_VERSION,
+            "feeds": {
+                feed_url: {
+                    "etag": cached["etag"],
+                    "modified": cached["modified"],
+                    "entries": [{"title": entry.title, "link": entry.link} for entry in cached["entries"]],
+                }
+                for feed_url, cached in self.feed_cache.items()
+                if feed_url in self.feed_urls
+            },
+        }
+
+    def save_feed_cache(self):
+        """Write the cache through a temporary file so a crash can never half-overwrite it."""
+        try:
+            payload = json.dumps(self.feed_cache_payload(), sort_keys=True)
+            if payload == self.saved_feed_cache:
+                return  # nothing changed since the last write, leave the disk alone
+            temp_path = self.feed_cache_path(f"{FEED_CACHE_FILE}.tmp")
+            with open(temp_path, "w") as f:
+                f.write(payload)
+            os.replace(temp_path, self.feed_cache_path())
+        except OSError:
+            return  # caching is best effort, the next refresh just downloads the feeds again
+        self.saved_feed_cache = payload
+
+    def load_feed_cache(self):
+        """Read the cache back, ignoring anything we cannot make sense of."""
+        try:
+            with open(self.feed_cache_path()) as f:
+                stored = json.load(f)
+            if stored.get("version") != FEED_CACHE_VERSION:
+                return {}
+            return {
+                feed_url: {
+                    "etag": cached.get("etag"),
+                    "modified": cached.get("modified"),
+                    "entries": [
+                        SimpleNamespace(title=entry.get("title") or "", link=entry.get("link") or "")
+                        for entry in cached.get("entries") or []
+                    ],
+                }
+                for feed_url, cached in (stored.get("feeds") or {}).items()
+            }
+        except (OSError, ValueError, AttributeError):
+            return {}
 
     def refresh(self, sender):
         self.merge_requests = []
         for feed_url in self.feed_urls:
-            document = feedparser.parse(feed_url)
+            cached = self.feed_cache.setdefault(feed_url, {"etag": None, "modified": None, "entries": []})
+            document = feedparser.parse(feed_url, etag=cached["etag"], modified=cached["modified"])
+
+            # gitlab rotates the validators, so take the fresh ones even on a 304. Only accept
+            # strings: feedparser gives us the raw header value, anything else is unusable here.
+            for header in ("etag", "modified"):
+                value = document.get(header)
+                if isinstance(value, str):
+                    cached[header] = value
+
+            # the server honoured If-None-Match / If-Modified-Since: no body was sent, so reuse
+            # what we already have instead of dropping this feed's merge requests.
+            if document.get("status") == 304:
+                self.merge_requests.extend(cached["entries"])
+                continue
+
             if document.bozo:
                 self.title = "⚠️"
                 return
-            else:
-                self.merge_requests.extend(document.entries)
+
+            # keep only the fields the menu needs, so the cache stays plain serializable data
+            cached["entries"] = [
+                SimpleNamespace(
+                    title=str(getattr(entry, "title", "") or ""), link=str(getattr(entry, "link", "") or "")
+                )
+                for entry in document.entries
+            ]
+            self.merge_requests.extend(cached["entries"])
 
         self.last_updated = datetime.now().strftime("%H:%M")
         self.build_menu()
         self.update_title()
+        self.save_feed_cache()
 
     @rumps.clicked("Preferences")
     def set_preferences(self, sender):
