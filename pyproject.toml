@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Software Development",
 ]
 dependencies = [
-  "feedparser==6.0.12",
+  "feedparser==6.0.14",
   "py2app==0.28.8",
   "rumps==0.4.0",
 ]
