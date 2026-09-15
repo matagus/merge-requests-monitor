@@ -68,6 +68,12 @@ line-length = 120
 [tool.black]
 line-length = 120
 
+# The deliverable is the macOS .app bundle built by py2app (setup.py); the code
+# itself lives in the root-level main.py/__about__.py modules, there is no
+# importable package directory. `packages = ["mergerequestsmonitor"]` pointed at
+# a directory that does not exist, and hatchling does not reject that: it built a
+# wheel whose only entries were the dist-info metadata and licenses, so an
+# installed wheel provided nothing at all. Naming the real top-level modules is
+# what makes the wheel ship the code it claims to.
 [tool.hatch.build.targets.wheel]
-packages = ["mergerequestsmonitor"]
-line-length = 120
+only-include = ["main.py", "__about__.py"]
