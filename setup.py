@@ -16,26 +16,15 @@ OPTIONS = {
 }
 
 
-# Runtime requirements are declared once, in requirements.txt (the file the release
-# workflow installs). py2app itself is a build tool, so it must not end up in the bundle.
-def _runtime_requirements():
-    with open("requirements.txt") as f:
-        return [
-            line.strip()
-            for line in f
-            if line.strip() and not line.strip().startswith("#") and not line.lower().startswith("py2app")
-        ]
-
-
-REQ_LIST = _runtime_requirements()
-
+# py2app >= 0.28.9 dropped support for the `install_requires` option, so the runtime
+# requirements must already be installed when `python setup.py py2app` runs; the release
+# workflow does that from requirements.txt. `rumps` is force-included through
+# OPTIONS["packages"] and feedparser is picked up by modulegraph from main.py's imports.
 setup(
     app=APP,
     include=["__about__"],
     data_files=DATA_FILES,
     options={"py2app": OPTIONS},
-    install_requires=REQ_LIST,
-    # Do not add pinned requirements here; edit requirements.txt instead.
     name="MergeRequestsMonitor",
     version=__version__,
 )
