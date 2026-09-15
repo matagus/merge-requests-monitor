@@ -15,5 +15,4 @@ htmlcov/
 db.sqlite3
 env/
 .python-version
-uv.lock
 WARP.md
