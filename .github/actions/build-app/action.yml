@@ -1,0 +1,72 @@
+name: Build and verify app bundle
+description: >-
+  Install the packaging dependencies, build MergeRequestsMonitor.app with py2app, then
+  verify that the bundle ad-hoc signs and that its binary actually launches. Shared by
+  the CI package job and the release workflow so the two cannot drift apart.
+
+inputs:
+  requirements-file:
+    description: Requirements file holding the build and runtime dependencies to install.
+    required: false
+    default: requirements.txt
+  smoke-test:
+    description: Launch the built binary to confirm the bundle is runnable. Set to false to skip.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+
+  steps:
+  - name: Install packaging dependencies
+    shell: bash
+    run: |
+      python -m pip install --upgrade pip
+      pip install --upgrade -r "${{ inputs.requirements-file }}"
+
+  - name: Build application bundle
+    shell: bash
+    run: python setup.py py2app
+
+  - name: Verify bundle signing
+    shell: bash
+    run: |
+      app="dist/MergeRequestsMonitor.app"
+      stubs="$(find "$app" -name 'lib*stub.a')"
+      if [ -n "$stubs" ]; then
+        echo "::error::bundle contains static archives codesign cannot verify (see py2app#546)"
+        echo "$stubs"
+        exit 1
+      fi
+      codesign --verify --deep --strict --verbose=2 "$app"
+
+  - name: Smoke test the bundle
+    if: inputs.smoke-test == 'true'
+    shell: bash
+    run: |
+      bin="dist/MergeRequestsMonitor.app/Contents/MacOS/MergeRequestsMonitor"
+      log="${RUNNER_TEMP:-/tmp}/merge-requests-monitor-smoke.log"
+      "$bin" >"$log" 2>&1 &
+      pid=$!
+      sleep 5
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "bundled binary stayed alive for 5s"
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        exit 0
+      fi
+      status=0
+      wait "$pid" || status=$?
+      echo "---- smoke log ----"
+      cat "$log"
+      echo "-------------------"
+      # A headless runner has no Window Server session, so an app that registers a
+      # status bar item can legitimately exit there. Only treat that shape of failure
+      # as informational; a broken bundle (missing dylib, bad import, signing error)
+      # still fails the job.
+      if grep -qiE "Window Server|_RegisterApplication|not permitted|cannot be opened" "$log"; then
+        echo "::warning::binary exited, looks GUI-session related on a headless runner; ignoring"
+        exit 0
+      fi
+      echo "::error::bundled binary exited early with status ${status}"
+      exit 1

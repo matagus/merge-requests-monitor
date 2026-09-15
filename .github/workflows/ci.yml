@@ -36,6 +36,32 @@ jobs:
       - name: Generate coverage report
         run: hatch run test.py${{ matrix.python-version }}:cov
 
+  # Packaging regression check. The tests never touch setup.py/py2app, so until now a
+  # broken bundle only surfaced when a version tag was pushed. Mirrors the release
+  # workflow's interpreter (pinned to the same patch) and runs the same build/verify
+  # steps via the composite action, so a change to either cannot drift silently.
+  # Deliberately not part of the version matrix: the failure mode here is the runner's
+  # python.org framework build, not the project's minimum supported version.
+  package:
+    name: Build & sign app bundle
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14.7"
+          cache: "pip"
+
+      - name: Build, sign and smoke test the bundle
+        uses: ./.github/actions/build-app
+
   pre-commit:
     name: Pre-commit Hooks
     runs-on: macos-latest
