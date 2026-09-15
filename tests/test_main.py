@@ -1,8 +1,20 @@
+import json
+from types import SimpleNamespace
 from unittest.mock import Mock, patch, mock_open
 
+import pytest
 import rumps
 
-from main import MergeRequestsMonitorApp
+from main import APP_NAME, FEED_CACHE_FILE, MergeRequestsMonitorApp
+
+
+@pytest.fixture(autouse=True)
+def app_support_folder(tmp_path, monkeypatch):
+    """Keep the app's files inside a temp folder instead of the real Application Support one."""
+    folder = tmp_path / APP_NAME
+    folder.mkdir()
+    monkeypatch.setattr(rumps.rumps, "application_support", lambda name: str(folder))
+    return folder
 
 
 class TestMergeRequestsMonitorApp:
@@ -393,3 +405,108 @@ class TestMergeRequestsMonitorApp:
         app.refresh(None)
         assert len(app.merge_requests) == 1
         assert app.merge_requests[0].title == "MR 3"
+
+
+class TestFeedCachePersistence:
+    """The conditional GET cache has to survive restarts and crashes."""
+
+    FEED_URL = "https://gitlab.com/feed1.atom"
+
+    def _cached(self, etag='"etag-v1"', modified=None):
+        """In memory form: entries are objects the menu can read attributes off."""
+        return {
+            "etag": etag,
+            "modified": modified,
+            "entries": [SimpleNamespace(title="MR 1", link="https://gitlab.com/mr/1")],
+        }
+
+    def _stored(self, etag='"etag-v1"', modified=None):
+        """On disk form: entries are plain JSON objects."""
+        return {
+            "etag": etag,
+            "modified": modified,
+            "entries": [{"title": "MR 1", "link": "https://gitlab.com/mr/1"}],
+        }
+
+    def _document(self, status=200, etag=None, entries=()):
+        document = Mock(bozo=False, entries=list(entries))
+        headers = {"status": status}
+        if etag is not None:
+            headers["etag"] = etag
+        document.get.side_effect = lambda key, default=None: headers.get(key, default)
+        return document
+
+    def test_refresh_writes_the_cache_to_disk(self, app_support_folder):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.FEED_URL]
+
+        entries = [Mock(title="MR 1", link="https://gitlab.com/mr/1")]
+        with patch("main.feedparser.parse", return_value=self._document(etag='"etag-v1"', entries=entries)):
+            app.refresh(None)
+
+        stored = json.loads((app_support_folder / FEED_CACHE_FILE).read_text())
+        assert stored["version"] == 1
+        assert stored["feeds"][self.FEED_URL]["etag"] == '"etag-v1"'
+        assert stored["feeds"][self.FEED_URL]["entries"] == [{"title": "MR 1", "link": "https://gitlab.com/mr/1"}]
+
+    def test_validators_and_entries_are_reused_after_a_restart(self, app_support_folder):
+        (app_support_folder / FEED_CACHE_FILE).write_text(
+            json.dumps({"version": 1, "feeds": {self.FEED_URL: self._stored(modified="Mon, 01 Jan 2024 00:00:00 GMT")}})
+        )
+
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.FEED_URL]
+        assert app.feed_cache[self.FEED_URL]["etag"] == '"etag-v1"'
+
+        document = self._document(status=304, etag='"etag-v2"')
+        with patch("main.feedparser.parse", return_value=document) as mock_parse:
+            app.refresh(None)
+
+        # the persisted validators went out as conditional GET headers...
+        mock_parse.assert_called_once_with(self.FEED_URL, etag='"etag-v1"', modified="Mon, 01 Jan 2024 00:00:00 GMT")
+        # ...and the 304 kept the cached merge requests instead of emptying the menu
+        assert [mr.title for mr in app.merge_requests] == ["MR 1"]
+        assert app.title == "1"
+        # a rotated ETag is persisted as well
+        assert (
+            json.loads((app_support_folder / FEED_CACHE_FILE).read_text())["feeds"][self.FEED_URL]["etag"]
+            == '"etag-v2"'
+        )
+
+    def test_removed_feeds_are_pruned_from_the_cache(self, app_support_folder):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = ["https://gitlab.com/kept.atom"]
+        app.feed_cache = {
+            "https://gitlab.com/kept.atom": self._cached(),
+            "https://gitlab.com/gone.atom": self._cached(),
+        }
+
+        app.save_feed_cache()
+
+        assert set(json.loads((app_support_folder / FEED_CACHE_FILE).read_text())["feeds"]) == {
+            "https://gitlab.com/kept.atom"
+        }
+
+    def test_truncated_cache_file_is_ignored(self, app_support_folder):
+        (app_support_folder / FEED_CACHE_FILE).write_text('{"version": 1, "feeds": {"https://gitlab.com')
+
+        assert MergeRequestsMonitorApp().feed_cache == {}
+
+    def test_cache_written_by_a_newer_version_is_ignored(self, app_support_folder):
+        (app_support_folder / FEED_CACHE_FILE).write_text(
+            json.dumps({"version": 999, "feeds": {self.FEED_URL: self._stored()}})
+        )
+
+        assert MergeRequestsMonitorApp().feed_cache == {}
+
+    def test_unchanged_cache_is_not_written_again(self, app_support_folder):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.FEED_URL]
+        app.feed_cache = {self.FEED_URL: self._cached()}
+        app.save_feed_cache()
+
+        # nothing changed, so the next save must leave the file alone
+        (app_support_folder / FEED_CACHE_FILE).write_text("sentinel")
+        app.save_feed_cache()
+
+        assert (app_support_folder / FEED_CACHE_FILE).read_text() == "sentinel"
