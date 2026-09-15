@@ -115,7 +115,7 @@ class TestMergeRequestsMonitorApp:
 
     @patch("main.feedparser.parse")
     def test_refresh_with_parsing_error(self, mock_parse):
-        """Test refresh handles feed parsing errors"""
+        """A broken feed warns in the badge but still leaves the menu and timestamp usable"""
         # Mock parsing error
         mock_document = Mock(bozo=True)  # Indicates parsing error
         mock_parse.return_value = mock_document
@@ -126,6 +126,11 @@ class TestMergeRequestsMonitorApp:
         app.refresh(None)
 
         assert app.title == "⚠️"
+        assert app.failed_feeds == ["https://gitlab.com/invalid.atom"]
+        assert app.last_updated != "Never"
+        menu_titles = [item.title for item in app.menu.values() if hasattr(item, "title")]
+        assert "No pending MRs" in menu_titles
+        assert any("⚠️ feed 1 failed" in title for title in menu_titles)
 
     @patch("main.feedparser.parse")
     def test_refresh_updates_timestamp(self, mock_parse):
@@ -510,3 +515,135 @@ class TestFeedCachePersistence:
         app.save_feed_cache()
 
         assert (app_support_folder / FEED_CACHE_FILE).read_text() == "sentinel"
+
+
+class TestFeedFailures:
+    """One unreadable feed must not blank out the good ones or leave the UI stale (issue #197)."""
+
+    BROKEN = "https://gitlab.com/broken.atom?feed_token=secret"
+    WORKING = "https://gitlab.com/working.atom?feed_token=secret"
+
+    def _entries(self, *titles):
+        return [SimpleNamespace(title=title, link=f"https://gitlab.com/mr/{title}") for title in titles]
+
+    def _cached(self, *titles):
+        return {"etag": None, "modified": None, "entries": self._entries(*titles)}
+
+    def _document(self, *titles, bozo=False, status=200):
+        document = Mock(bozo=bozo, entries=self._entries(*titles))
+        headers = {"status": status}
+        document.get.side_effect = lambda key, default=None: headers.get(key, default)
+        return document
+
+    def _parse(self, documents):
+        """Answer each configured feed url with the document that was set up for it."""
+        return Mock(side_effect=lambda url, **_: documents[url])
+
+    def test_a_broken_feed_does_not_hide_the_other_feeds(self):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.WORKING, self.BROKEN]
+        app.feed_cache = {self.BROKEN: self._cached("Old MR")}
+        documents = {
+            self.WORKING: self._document("New MR"),
+            self.BROKEN: self._document(bozo=True),
+        }
+
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+
+        # the working feed renders, the broken one falls back to what it last fetched
+        assert [mr.title for mr in app.merge_requests] == ["New MR", "Old MR"]
+        assert app.title == "⚠️"
+        assert app.failed_feeds == [self.BROKEN]
+
+    def test_feeds_after_a_broken_one_are_still_fetched(self):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.BROKEN, self.WORKING]
+        documents = {
+            self.BROKEN: self._document(bozo=True),
+            self.WORKING: self._document("New MR"),
+        }
+
+        with patch("main.feedparser.parse", self._parse(documents)) as mock_parse:
+            app.refresh(None)
+
+        assert mock_parse.call_count == 2
+        assert [mr.title for mr in app.merge_requests] == ["New MR"]
+
+    def test_the_broken_feed_is_named_in_the_menu_without_leaking_its_token(self):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.WORKING, self.BROKEN]
+        documents = {
+            self.WORKING: self._document("New MR"),
+            self.BROKEN: self._document(bozo=True),
+        }
+
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+            app.build_menu()
+
+        last_updated = app.menu.values()[0].title
+        # position, not url: a feed url carries the user's private feed token
+        assert "⚠️ feed 2 failed" in last_updated
+        assert "secret" not in last_updated
+
+    def test_the_good_feeds_are_still_saved_to_the_cache(self, app_support_folder):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.WORKING, self.BROKEN]
+        app.feed_cache = {self.BROKEN: self._cached("Old MR")}
+        documents = {
+            self.WORKING: self._document("New MR"),
+            self.BROKEN: self._document(bozo=True),
+        }
+
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+
+        stored = json.loads((app_support_folder / FEED_CACHE_FILE).read_text())
+        assert stored["feeds"][self.WORKING]["entries"] == [{"title": "New MR", "link": "https://gitlab.com/mr/New MR"}]
+        # the broken feed keeps what it had before, the unparsable body is never stored
+        assert stored["feeds"][self.BROKEN]["entries"] == [{"title": "Old MR", "link": "https://gitlab.com/mr/Old MR"}]
+
+    def test_the_warning_clears_when_the_feed_recovers(self):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.BROKEN]
+        broken = self._document(bozo=True)
+        documents = {self.BROKEN: broken}
+
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+
+        assert app.failed_feeds == [self.BROKEN]
+
+        documents[self.BROKEN] = self._document("New MR")
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+
+        assert app.failed_feeds == []
+        assert app.title == "1"
+
+    def test_the_broken_feed_keeps_showing_its_last_good_fetch(self):
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.BROKEN]
+        app.feed_cache = {self.BROKEN: self._cached("Old MR")}
+        documents = {self.BROKEN: self._document(bozo=True)}
+
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+
+        assert [mr.title for mr in app.merge_requests] == ["Old MR"]
+        assert app.failed_feeds == [self.BROKEN]
+
+    def test_a_not_modified_feed_is_not_reported_as_broken(self):
+        """A 304 sends no body, so its cache has to stand in without the feed looking broken"""
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [self.WORKING]
+        app.feed_cache = {self.WORKING: self._cached("Cached MR")}
+        documents = {self.WORKING: self._document(bozo=True, status=304)}
+
+        with patch("main.feedparser.parse", self._parse(documents)):
+            app.refresh(None)
+
+        assert app.failed_feeds == []
+        assert app.title == "1"
+        assert [mr.title for mr in app.merge_requests] == ["Cached MR"]

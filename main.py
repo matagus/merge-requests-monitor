@@ -34,6 +34,8 @@ class MergeRequestsMonitorApp(rumps.App):
 
         # initialize default variables & loan config values
         self.last_updated = "Never"
+        # feed urls that could not be read during the last refresh
+        self.failed_feeds = []
         self.merge_requests = []
         # conditional GET validators (ETag / Last-Modified) plus the entries they were fetched
         # with, per feed url. Kept on disk so a restart or a crash does not turn into a full
@@ -55,12 +57,33 @@ class MergeRequestsMonitorApp(rumps.App):
         self.start_timer()
 
     def update_title(self):
+        if self.failed_feeds:
+            # the badge warns that what the menu shows is not the whole story; the count of the
+            # feeds we could read is in the menu itself
+            self.title = "⚠️"
+            return
         self.title = f"{len(self.merge_requests)}"
+
+    def last_updated_label(self):
+        """The "Last updated" entry, warning about the feeds that could not be read.
+
+        A failed feed keeps showing the merge requests of its last good fetch, which is worth
+        saying out loud. Failed feeds are named by their position in the configuration and not
+        by their url, which carries a secret feed token.
+        """
+        label = f"Last updated: {self.last_updated}"
+        numbers = [
+            str(number) for number, feed_url in enumerate(self.feed_urls, start=1) if feed_url in self.failed_feeds
+        ]
+        if not numbers:
+            return label
+        word = "feeds" if len(numbers) > 1 else "feed"
+        return f"{label} · ⚠️ {word} {', '.join(numbers)} failed (showing last known MRs)"
 
     def build_menu(self):
         self.menu.clear()
 
-        self.menu.add(rumps.MenuItem(f"Last updated: {self.last_updated}"))
+        self.menu.add(rumps.MenuItem(self.last_updated_label()))
 
         refresh_menu = rumps.MenuItem(
             f"Refresh Interval: {self.refresh_interval_label}",
@@ -205,6 +228,7 @@ class MergeRequestsMonitorApp(rumps.App):
 
     def refresh(self, sender):
         self.merge_requests = []
+        self.failed_feeds = []
         for feed_url in self.feed_urls:
             cached = self.feed_cache.setdefault(feed_url, {"etag": None, "modified": None, "entries": []})
             document = feedparser.parse(feed_url, etag=cached["etag"], modified=cached["modified"])
@@ -216,15 +240,22 @@ class MergeRequestsMonitorApp(rumps.App):
                 if isinstance(value, str):
                     cached[header] = value
 
-            # the server honoured If-None-Match / If-Modified-Since: no body was sent, so reuse
-            # what we already have instead of dropping this feed's merge requests.
+            # The server honoured If-None-Match / If-Modified-Since. A 304 carries no body, so
+            # `entries` comes back empty and this branch has to run before the entries are
+            # refreshed below, or an unchanged feed would overwrite its own cache with nothing.
+            # (Checked against feedparser 6.0.14: a 304 leaves `bozo` false, so its position
+            # relative to the failure handling underneath does not matter.)
             if document.get("status") == 304:
                 self.merge_requests.extend(cached["entries"])
                 continue
 
             if document.bozo:
-                self.title = "⚠️"
-                return
+                # A broken feed must not take the rest of the app down with it: keep the entries
+                # of the last good fetch, flag this feed in the menu and carry on with the feeds
+                # after it.
+                self.failed_feeds.append(feed_url)
+                self.merge_requests.extend(cached["entries"])
+                continue
 
             # keep only the fields the menu needs, so the cache stays plain serializable data
             cached["entries"] = [
