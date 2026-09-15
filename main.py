@@ -45,11 +45,7 @@ class MergeRequestsMonitorApp(rumps.App):
 
         config = self.get_or_create_config()
         self.refresh_interval_label = config["refresh_interval"]
-        try:
-            self.feed_urls = config["feeds"].split(",")
-        except KeyError:
-            # support for older versions which only has a single feed
-            self.feed_urls = [config["feed"]]
+        self.feed_urls = self.read_feed_urls(config)
 
         # make this app do what it must do!
         self.build_menu()
@@ -160,6 +156,21 @@ class MergeRequestsMonitorApp(rumps.App):
                 config.write(f)
 
             return _get_config()
+
+    def read_feed_urls(self, config):
+        """The feed urls the app should poll, whatever shape the config file is in.
+
+        A comma separated list under "feeds" is what the current versions write, a single url
+        under "feed" is what the single-feed versions wrote. A hand edited file, or one left
+        half written by a crash, can hold neither key, and that is no reason to refuse to
+        start: fall back to the default feed rather than letting the KeyError escape.
+
+        Blank entries are dropped, so a "feeds" with nothing in it counts as the missing key
+        it is and gets the same fallback instead of a url that can never be fetched.
+        """
+        configured = config.get("feeds", fallback="") or config.get("feed", fallback="")
+        urls = [url.strip() for url in configured.split(",") if url.strip()]
+        return urls or [DEFAULT_FEED_URL]
 
     def get_refresh_interval(self, label):
         return {

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch, mock_open
 import pytest
 import rumps
 
-from main import APP_NAME, FEED_CACHE_FILE, MergeRequestsMonitorApp
+from main import APP_NAME, DEFAULT_FEED_URL, FEED_CACHE_FILE, MergeRequestsMonitorApp
 
 
 @pytest.fixture(autouse=True)
@@ -647,3 +647,43 @@ class TestFeedFailures:
         assert app.failed_feeds == []
         assert app.title == "1"
         assert [mr.title for mr in app.merge_requests] == ["Cached MR"]
+
+
+class TestConfigFeedUrls:
+    """A config.ini we cannot fully read is no reason to refuse to start (issue #198)."""
+
+    FEED_A = "https://gitlab.com/a.atom"
+    FEED_B = "https://gitlab.com/b.atom"
+
+    def _start(self, app_support_folder, feed_keys):
+        """Start the app against a config.ini whose [Gitlab] section holds `feed_keys`."""
+        (app_support_folder / "config.ini").write_text(f"[Gitlab]\nrefresh_interval = 5m\n{feed_keys}")
+        return MergeRequestsMonitorApp()
+
+    def test_the_configured_feeds_are_read(self, app_support_folder):
+        app = self._start(app_support_folder, f"feeds = {self.FEED_A},{self.FEED_B}\n")
+
+        assert app.feed_urls == [self.FEED_A, self.FEED_B]
+
+    def test_the_legacy_single_feed_is_still_read(self, app_support_folder):
+        """The versions before multi-feed wrote one url under the singular key."""
+        app = self._start(app_support_folder, f"feed = {self.FEED_A}\n")
+
+        assert app.feed_urls == [self.FEED_A]
+
+    def test_a_config_without_either_feed_key_starts_on_the_default(self, app_support_folder):
+        """The crash this guards against: neither key raised an uncaught KeyError."""
+        app = self._start(app_support_folder, "")
+
+        assert app.feed_urls == [DEFAULT_FEED_URL]
+
+    def test_blank_feed_entries_fall_back_to_the_default(self, app_support_folder):
+        """A feeds key holding nothing usable stands in for the key being absent."""
+        app = self._start(app_support_folder, "feeds = , ,\n")
+
+        assert app.feed_urls == [DEFAULT_FEED_URL]
+
+    def test_feed_entries_are_trimmed_and_empties_dropped(self, app_support_folder):
+        app = self._start(app_support_folder, f"feeds = {self.FEED_A} , ,{self.FEED_B} ,\n")
+
+        assert app.feed_urls == [self.FEED_A, self.FEED_B]
