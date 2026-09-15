@@ -31,6 +31,12 @@ Download the latest DMG installer file from [Releases section](https://github.co
 `"MergeRequestsMonitor"` app to be executed. This is a necessary step since by default MacOS won't allow you to run any
 app you download from places other than the App Store.
 
+## Requirements
+
+- macOS only: the app is built on [`rumps`](https://github.com/jaredks/rumps) and packaged with
+  [`py2app`](https://github.com/ronaldoussoren/py2app), both of which are macOS-specific.
+- Python 3.11, 3.12, 3.13 or 3.14 when building the app bundle or running it from source.
+
 ## Build & run
 
 Alternatively, you can locally build the app bundle:
