@@ -15,10 +15,19 @@ OPTIONS = {
     "packages": ["rumps"],
 }
 
-REQ_LIST = [
-    "feedparser==6.0.12",
-    "rumps==0.4.0",
-]
+
+# Runtime requirements are declared once, in requirements.txt (the file the release
+# workflow installs). py2app itself is a build tool, so it must not end up in the bundle.
+def _runtime_requirements():
+    with open("requirements.txt") as f:
+        return [
+            line.strip()
+            for line in f
+            if line.strip() and not line.strip().startswith("#") and not line.lower().startswith("py2app")
+        ]
+
+
+REQ_LIST = _runtime_requirements()
 
 setup(
     app=APP,
@@ -26,6 +35,7 @@ setup(
     data_files=DATA_FILES,
     options={"py2app": OPTIONS},
     install_requires=REQ_LIST,
+    # Do not add pinned requirements here; edit requirements.txt instead.
     name="MergeRequestsMonitor",
     version=__version__,
 )
