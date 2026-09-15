@@ -1,3 +1,6 @@
+import os
+import sys
+
 from setuptools import setup
 
 from py2app.build_app import py2app as _py2app
@@ -15,6 +18,18 @@ OPTIONS = {
     },
     "iconfile": "media/icon.png",
     "packages": ["rumps"],
+    # py2app#546: the python.org framework builds ship Tcl/Tk 9.x frameworks that
+    # contain the static stub archives lib{tcl,tk}stub.a. py2app copies them into the
+    # bundle and then ad-hoc signs it, and codesign rejects a bundle holding an
+    # unsigned nested Mach-O ("code object is not signed at all"), which surfaces as
+    # RuntimeError: Cannot sign bundle. Neither rumps nor feedparser imports tkinter,
+    # so keep it out of the module graph and refuse to bundle the frameworks. The
+    # paths are derived from sys.prefix so this is a no-op on a Python without Tk.
+    "excludes": ["tkinter"],
+    "dylib_excludes": [
+        os.path.join(sys.prefix, "Frameworks", "Tcl.framework"),
+        os.path.join(sys.prefix, "Frameworks", "Tk.framework"),
+    ],
 }
 
 
