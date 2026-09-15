@@ -28,6 +28,16 @@ jobs:
     - name: Build Application
       run: |
         python setup.py py2app
+    - name: Verify bundle signing
+      run: |
+        app="dist/MergeRequestsMonitor.app"
+        stubs="$(find "$app" -name 'lib*stub.a')"
+        if [ -n "$stubs" ]; then
+          echo "::error::bundle contains static archives codesign cannot verify (see py2app#546)"
+          echo "$stubs"
+          exit 1
+        fi
+        codesign --verify --deep --strict --verbose=2 "$app"
     - name: Build dmg installer
       run: |
         mkdir -p dist/dmg
