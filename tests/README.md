@@ -84,13 +84,26 @@ The test suite provides comprehensive coverage of the `MergeRequestsMonitorApp` 
 - ✅ **About dialog** (`test_about_dialog`) - Tests about screen
 - ✅ **Quit action** (`test_quit_application`) - Tests app termination
 
+### Feed Cache & Conditional Requests
+The feed cache (`feed_cache.json`, stored next to `config.ini`) keeps GitLab's `ETag`/`Last-Modified` validators and the
+last seen entries on disk so unchanged feeds are not re-parsed. Covered by `TestFeedCachePersistence`:
+
+- ✅ **Cache written** (`test_refresh_writes_the_cache_to_disk`) - Tests validators and entries land on disk after a refresh
+- ✅ **Restart reuse** (`test_validators_and_entries_are_reused_after_a_restart`) - Tests a fresh app instance reads the cache back
+- ✅ **Feed pruning** (`test_removed_feeds_are_pruned_from_the_cache`) - Tests dropped feeds disappear from the cache
+- ✅ **Corrupt cache** (`test_truncated_cache_file_is_ignored`) - Tests a truncated JSON file is treated as empty
+- ✅ **Newer cache format** (`test_cache_written_by_a_newer_version_is_ignored`) - Tests forward-compatible cache versioning
+- ✅ **No rewrite when unchanged** (`test_unchanged_cache_is_not_written_again`) - Tests the disk is left alone when nothing moved
+
 ### Timer Management
 - ✅ **Auto-start** (`test_timer_starts_automatically`) - Tests timer initialization
 
 ### Test Statistics
-- **Total tests**: 26
-- **Methods tested**: 11 of 11 (100%)
-- **Edge cases covered**: HTML entities, draft MRs, multiple feeds, parsing errors
+- **Total tests**: 32 (26 for `MergeRequestsMonitorApp`, 6 for feed cache persistence)
+- **Methods tested**: 17 of 17 (the uncovered lines are the legacy single-feed `config.ini` fallback, the `OSError`
+  best-effort cache-write fallback and the `__main__` entrypoint)
+- **Line coverage**: 97% on `main.py`
+- **Edge cases covered**: HTML entities, draft MRs, multiple feeds, parsing errors, corrupt and future-dated cache files
 
 ## Testing Best Practices
 

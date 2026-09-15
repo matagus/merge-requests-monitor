@@ -68,7 +68,7 @@ Notice it might take a few seconds for hatch to build and setup an environment :
 
 ## Testing
 
-The project includes a comprehensive test suite with 26 tests covering all functionality.
+The project includes a comprehensive test suite with 32 tests covering all functionality (97% line coverage on `main.py`).
 
 ### Run all tests
 ```bash
