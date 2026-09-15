@@ -40,6 +40,26 @@ Repository = "https://github.com/matagus/merge-requests-monitor"
 [tool.hatch.version]
 path = "__about__.py"
 
+# Hatch creates its environments inside the project root (`merge-requests-monitor/` for
+# the default env, `merge-requests-monitor-test-py3.14/` for a matrix one) and hides each
+# of them by writing a `.gitignore` containing `*` *inside* the directory. Git honours
+# that, the hatchling file walker does not: it consults the repository's own ignore files
+# only, so an sdist built from a developer checkout swallowed the whole virtualenv --
+# 1080 of the 1118 entries in one such tarball -- and then aborted on the venv's absolute
+# `bin/python` symlink:
+#
+#   tarfile.AbsoluteLinkError: 'mergerequestsmonitor-0.6.0/merge-requests-monitor/bin/python'
+#   is a link to an absolute path
+#
+# The root .gitignore already keeps build/, dist/, .eggs/, htmlcov/ and __pycache__/ out
+# of the sdist because hatchling does read that file; these environment directories are
+# the part it cannot see, so they are excluded here rather than left to ignore files.
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/merge-requests-monitor*",
+    "/.venv*",
+]
+
 [tool.hatch.envs.default]
 dependencies = [
     "ipython", "ipdb"
