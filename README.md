@@ -104,7 +104,7 @@ Notice it might take a few seconds for hatch to build and setup an environment :
 
 ## Testing
 
-The project includes a comprehensive test suite with 32 tests covering all functionality (97% line coverage on `main.py`).
+The pytest suite in `tests/` covers `main.py`. Run it, or a subset of it, through hatch:
 
 ### Run all tests
 ```bash
@@ -116,7 +116,9 @@ hatch run test:test
 hatch run test:cov
 ```
 
-For detailed information about test coverage and testing patterns, see [tests/README.md](tests/README.md).
+How many tests there are and what the coverage percentage is -- pytest and the coverage report
+say, and this page does not repeat them. [tests/README.md](tests/README.md) covers running a
+subset and the mocking conventions.
 
 
 ## Roadmap

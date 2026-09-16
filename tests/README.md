@@ -1,151 +1,61 @@
 # Tests for Merge Requests Monitor
 
-This directory contains tests for the Merge Requests Monitor application.
+`test_main.py` holds the pytest suite for the app in `main.py`. What a test checks is stated by
+its name and docstring, and the classes group the behaviours they cover -- so this file does not
+re-list them. A hand-written index of test names, counts and percentages goes stale the moment a
+test is added; ask pytest instead:
 
-## Running Tests
-
-### Run all tests
 ```bash
-hatch run test:test
+hatch run test:test --collect-only -q                    # the current list
+hatch run test:test --cov=. --cov-report=term-missing    # the current coverage
 ```
 
-### Run tests with verbose output
+## Running tests
+
 ```bash
-hatch run test:test -v
+hatch run test:test        # all tests
+hatch run test:test -v     # all tests, verbose
+hatch run test:cov         # terminal coverage report + htmlcov/index.html
 ```
 
-### Run tests with coverage report
+The `test` environment runs on Python 3.11, 3.12, 3.13 and 3.14 through a hatch matrix; select
+one with `hatch run test.py3.11:test`. CI runs every version of the matrix.
+
+### Narrowing down
+
 ```bash
-hatch run test:cov
+hatch run test:test tests/test_main.py                       # one file
+hatch run test:test tests/test_main.py::TestFeedFailures     # one class
+hatch run test:test -k cache                                 # tests matching a substring
 ```
 
-This will generate:
-- Terminal coverage report showing percentage and missing lines
-- HTML coverage report in `htmlcov/` directory (open `htmlcov/index.html` in a browser)
+## Conventions
 
-### Run specific test file or test
-```bash
-# Run a specific test file
-hatch run test:test tests/test_main.py
+Nothing in the suite touches the network, the real `Application Support` folder or the menu bar.
+Every collaborator of `MergeRequestsMonitorApp` is replaced with a mock from `unittest.mock`:
 
-# Run a specific test method
-hatch run test:test tests/test_main.py::TestMergeRequestsMonitorApp::test_init
-```
+| Patch target | Why |
+|---|---|
+| `main.feedparser.parse` | no HTTP request; the returned `Mock` stands for a feed document |
+| `main.webbrowser.open_new_tab` | opening a merge request is asserted on, not performed |
+| `main.rumps.alert`, `rumps.Window` | the dialogs a user would have to click |
+| `main.rumps.quit_application` | so the run does not end mid-suite |
+| `main.datetime` | to pin "last updated" timestamps |
 
-## Test Structure
-
-The tests use `pytest` with `unittest.mock` for mocking dependencies. Key testing patterns:
-
-### Mocking feedparser
-To test feed parsing without making real HTTP requests:
 ```python
 @patch("main.feedparser.parse")
 def test_refresh(mock_parse):
-    mock_document = Mock(bozo=False, entries=[...])
-    mock_parse.return_value = mock_document
-    # ... test code
+    mock_parse.return_value = Mock(bozo=False, entries=[...])
+    # ...
 ```
 
-## Current Test Coverage
+Config and cache files are per test: the autouse `app_support_folder` fixture repoints
+`rumps.rumps.application_support` at `tmp_path / APP_NAME`, so `config.ini` and `feed_cache.json`
+are read and written inside a temp directory that pytest discards. Where a test only cares about
+what was written, `mock_open` stands in for the file.
 
-The test suite provides comprehensive coverage of the `MergeRequestsMonitorApp` class:
+## Adding tests
 
-### Initialization & Configuration
-- ✅ **App initialization** (`test_init`) - Verifies default state setup
-- ✅ **Config loading** (`test_init_with_existing_config`) - Tests existing config file handling
-- ✅ **Config creation** (`test_get_or_create_config_creates_default`) - Tests default config creation
-- ✅ **Config persistence** (`test_save_config`) - Verifies config writing to disk
-
-### Refresh Functionality
-- ✅ **Successful refresh** (`test_refresh_successful`) - Tests normal feed fetching
-- ✅ **Multiple feeds** (`test_refresh_with_multiple_feeds`) - Tests aggregating multiple GitLab feeds
-- ✅ **Parsing errors** (`test_refresh_with_parsing_error`) - Tests error handling with ⚠️ indicator
-- ✅ **Timestamp updates** (`test_refresh_updates_timestamp`) - Tests last_updated tracking
-- ✅ **MR list clearing** (`test_refresh_clears_previous_merge_requests`) - Tests proper state reset
-
-### Title & Display
-- ✅ **Empty state** (`test_update_title_no_merge_requests`) - Tests "0" display
-- ✅ **With MRs** (`test_update_title_with_merge_requests`) - Tests count display
-- ✅ **Refresh intervals** (`test_get_refresh_interval`) - Tests all time conversions (60s, 5m, 10m, 30m, 1h, 3h, 6h)
-
-### Menu Building
-- ✅ **Empty menu** (`test_build_menu_no_merge_requests`) - Tests "No pending MRs" state
-- ✅ **With MRs** (`test_build_menu_with_merge_requests`) - Tests MR listing
-- ✅ **Draft separation** (`test_build_menu_separates_draft_merge_requests`) - Tests draft/regular MR sections
-- ✅ **HTML entities** (`test_build_menu_with_html_entities`) - Tests proper title unescaping
-- ✅ **Interval options** (`test_build_menu_includes_refresh_interval_options`) - Tests all refresh options present
-
-### User Interactions
-- ✅ **URL opening** (`test_open_url`) - Tests browser opening for MRs
-- ✅ **URL with entities** (`test_open_url_with_html_entities`) - Tests URL matching with unescaped titles
-- ✅ **Preferences dialog** (`test_set_preferences`) - Tests feed URL configuration
-- ✅ **Preferences cancel** (`test_set_preferences_cancel`) - Tests dialog cancellation
-- ✅ **Interval changes** (`test_set_refresh_interval`) - Tests changing refresh frequency
-- ✅ **About dialog** (`test_about_dialog`) - Tests about screen
-- ✅ **Quit action** (`test_quit_application`) - Tests app termination
-
-### Feed Cache & Conditional Requests
-The feed cache (`feed_cache.json`, stored next to `config.ini`) keeps GitLab's `ETag`/`Last-Modified` validators and the
-last seen entries on disk so unchanged feeds are not re-parsed. Covered by `TestFeedCachePersistence`:
-
-- ✅ **Cache written** (`test_refresh_writes_the_cache_to_disk`) - Tests validators and entries land on disk after a refresh
-- ✅ **Restart reuse** (`test_validators_and_entries_are_reused_after_a_restart`) - Tests a fresh app instance reads the cache back
-- ✅ **Feed pruning** (`test_removed_feeds_are_pruned_from_the_cache`) - Tests dropped feeds disappear from the cache
-- ✅ **Corrupt cache** (`test_truncated_cache_file_is_ignored`) - Tests a truncated JSON file is treated as empty
-- ✅ **Newer cache format** (`test_cache_written_by_a_newer_version_is_ignored`) - Tests forward-compatible cache versioning
-- ✅ **No rewrite when unchanged** (`test_unchanged_cache_is_not_written_again`) - Tests the disk is left alone when nothing moved
-
-### Feed Failures
-A feed that cannot be read is kept separate from the healthy ones, and the menu says so. Covered by
-`TestFeedFailures`:
-
-- ✅ **Other feeds survive** (`test_a_broken_feed_does_not_hide_the_other_feeds`) - Tests the good feeds still render next to the ⚠️ badge
-- ✅ **Loop continues** (`test_feeds_after_a_broken_one_are_still_fetched`) - Tests a failure does not abort the remaining feeds
-- ✅ **Fallback content** (`test_the_broken_feed_keeps_showing_its_last_good_fetch`) - Tests the cached entries stand in for the failed feed
-- ✅ **Menu warning** (`test_the_broken_feed_is_named_in_the_menu_without_leaking_its_token`) - Tests "Last updated" points at the failing feed by position, never by its tokenized url
-- ✅ **Partial save** (`test_the_good_feeds_are_still_saved_to_the_cache`) - Tests an unreadable body is never written over the last good cache
-- ✅ **Warning clears** (`test_the_warning_clears_when_the_feed_recovers`) - Tests a later good refresh resets the state
-- ✅ **304 is not a failure** (`test_a_not_modified_feed_is_not_reported_as_broken`) - Tests an unchanged feed reuses its cache instead of being emptied or flagged
-
-### Config Feed URLs
-The feed urls come from a `config.ini` the user may have edited by hand, or that a crash left half written, so reading it
-has to cope with whatever it finds. Covered by `TestConfigFeedUrls`:
-
-- ✅ **Configured feeds** (`test_the_configured_feeds_are_read`) - Tests the comma separated `feeds` key becomes one url per entry
-- ✅ **Legacy key** (`test_the_legacy_single_feed_is_still_read`) - Tests the singular `feed` key the pre-multi-feed versions wrote still works
-- ✅ **Missing keys** (`test_a_config_without_either_feed_key_starts_on_the_default`) - Tests a config with neither `feeds` nor `feed` starts on `DEFAULT_FEED_URL` instead of raising `KeyError`
-- ✅ **Blank key** (`test_blank_feed_entries_fall_back_to_the_default`) - Tests an empty `feeds` is treated as the missing key it stands for
-- ✅ **Trimmed entries** (`test_feed_entries_are_trimmed_and_empties_dropped`) - Tests surrounding spaces go and empty entries are dropped
-
-### Unusable Config File
-A `config.ini` that is present but cannot be started on is treated like one that is absent. Covered by
-`TestUnusableConfigFile`:
-
-- ✅ **Empty file** (`test_an_empty_config_file_is_replaced_by_the_defaults`) - Tests a file with no `[Gitlab]` section starts on the defaults instead of raising `KeyError: 'Gitlab'`
-- ✅ **Foreign section** (`test_a_config_holding_a_different_section_is_replaced_by_the_defaults`) - Tests a file holding only another section takes the same fallback
-- ✅ **Repair persisted** (`test_the_replaced_config_is_written_to_disk`) - Tests the defaults are written back, so the next start reads a usable file
-- ✅ **Missing interval key** (`test_a_gitlab_section_without_a_refresh_interval_starts_on_the_default`) - Tests a section with no `refresh_interval` starts on `DEFAULT_REFRESH_INTERVAL` and keeps its own feeds
-- ✅ **Blank interval** (`test_a_blank_refresh_interval_starts_on_the_default`) - Tests an empty `refresh_interval` is treated as the missing key it stands for
-- ✅ **Configured interval** (`test_the_configured_refresh_interval_is_still_read`) - Tests a present value is read as it stands and not overwritten by the default
-
-### Timer Management
-- ✅ **Auto-start** (`test_timer_starts_automatically`) - Tests timer initialization
-
-### Test Statistics
-- **Total tests**: 50 (26 for `MergeRequestsMonitorApp`, 6 for feed cache persistence, 7 for feed failures, 5 for config
-  feed urls, 6 for unusable config files)
-- **Methods tested**: 21 of 21 (the uncovered lines are the `OSError` best-effort cache-write fallback and the `__main__`
-  entrypoint)
-- **Line coverage**: 98% on `main.py`
-- **Edge cases covered**: HTML entities, draft MRs, multiple feeds, parsing errors, corrupt and future-dated cache files,
-  config files missing both feed keys and configs written by the legacy single-feed version, config files with no
-  `[Gitlab]` section and sections missing the `refresh_interval` key
-
-## Testing Best Practices
-
-All tests follow these patterns:
-- Mock `feedparser.parse` to avoid real HTTP requests
-- Use `unittest.mock` for rumps UI components (dialogs, alerts)
-- Mock file I/O operations for config testing
-- Test both success and error paths
-- Verify state changes and side effects
+Mirror the class you are extending rather than adding an index here, and cover the failure path
+next to the success path: the bugs this project has shipped were almost all failure paths -- an
+unreadable feed, a half-written config, a link from a feed that is not a URL.
