@@ -7,6 +7,7 @@ import webbrowser
 
 from datetime import datetime
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import feedparser
 import rumps
@@ -21,6 +22,39 @@ DEFAULT_REFRESH_INTERVAL = "5m"
 DEFAULT_FEED_URL = "https://gitlab.com/<username>/<repo>/-/merge_requests.atom?feed_token=<token>&state=opened"
 FEED_CACHE_FILE = "feed_cache.json"
 FEED_CACHE_VERSION = 1
+# The schemes a feed-supplied link may be opened as. A feed is remote input the app only reads,
+# so handing its links straight to the browser lets it name a file:// address to read the disk
+# with, or a custom scheme to launch whatever is registered for it on this machine.
+WEB_URL_SCHEMES = frozenset({"http", "https"})
+
+
+def web_url(link):
+    """The address a feed-supplied link points at, or None when it is not one to open.
+
+    The checked string and the returned string are the same value, whitespace trimmed, so
+    nothing reaches the browser that was not looked at first. urlsplit lowercases the scheme,
+    which is why HTTPS passes without a second pass over the link, and a host is required on
+    top of the scheme: "https://" alone and a scheme-relative "//gitlab.com/mr/1" are both
+    links this app cannot open. urlsplit raises ValueError on a netloc it cannot parse (an
+    unbalanced IPv6 literal is one), and a link that cannot be parsed is refused like any
+    other rather than left to escape out of the menu callback.
+
+    Raw whitespace and control characters are refused outright. A real url escapes them as
+    percent encoded octets, and the two parsers that would have to agree on such a link --
+    urlsplit and the browser -- do not strip them in exactly the same places, which is
+    precisely the kind of disagreement a hostile feed goes looking for.
+    """
+    try:
+        url = link.strip()
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+
+    if any(char.isspace() or char < "\x20" for char in url):
+        return None
+    if parts.scheme in WEB_URL_SCHEMES and parts.netloc:
+        return url
+    return None
 
 
 class MergeRequestsMonitorApp(rumps.App):
@@ -347,12 +381,22 @@ class MergeRequestsMonitorApp(rumps.App):
         rumps.quit_application(sender)
 
     def open_url(self, link, sender=None):
-        """Open the link the clicked menu item was built for.
+        """Open the link the clicked menu item was built for, when it is a web address.
 
         `sender` is the ``rumps.MenuItem`` rumps passes to every callback; it is ignored because
         the link was chosen when the item was built, not looked up from its title.
+
+        Refusing a link is said out loud instead of passed over in silence: a menu item that
+        does nothing looks like a broken app, and the person reading this alert is the one who
+        can go and check where the feed came from.
         """
-        webbrowser.open_new_tab(link)
+        url = web_url(link)
+        if url is None:
+            rumps.alert(APP_NAME, "The link for this merge request is not a web address, so it was not opened.")
+            return False
+
+        webbrowser.open_new_tab(url)
+        return True
 
     def set_refresh_interval(self, sender):
         sender.state = 1  # set the selected item as checked
