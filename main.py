@@ -127,14 +127,16 @@ class MergeRequestsMonitorApp(rumps.App):
 
         self.menu.add(rumps.MenuItem(self.last_updated_label()))
 
-        refresh_menu = rumps.MenuItem(
+        # held on the instance so set_refresh_interval can retitle it without going through the
+        # menu by position, which looked the first item up: the "Last updated" line, not this one
+        self.refresh_menu = rumps.MenuItem(
             f"Refresh Interval: {self.refresh_interval_label}",
             callback=self.set_refresh_interval,
         )
         for freq in ["60s", "5m", "10m", "30m", "1h", "3h", "6h"]:
-            refresh_menu.add(rumps.MenuItem(freq, callback=self.set_refresh_interval))
+            self.refresh_menu.add(rumps.MenuItem(freq, callback=self.set_refresh_interval))
 
-        self.menu.add(refresh_menu)
+        self.menu.add(self.refresh_menu)
         self.menu.add(rumps.rumps.SeparatorMenuItem())
 
         if len(self.merge_requests) == 0:
@@ -399,16 +401,20 @@ class MergeRequestsMonitorApp(rumps.App):
         return True
 
     def set_refresh_interval(self, sender):
-        sender.state = 1  # set the selected item as checked
-        refresh_interval_menu = self.menu.values()[0]
+        """Switch the timer to the interval of the item clicked and say so in the menu.
 
-        self.refresh_interval = self.get_refresh_interval(sender.title)
+        The label is what the interval becomes: `get_refresh_interval` translates it into the
+        number of seconds for the timer, and nothing else has to remember that number between
+        one click and the next, so it stays a local here.
+        """
+        sender.state = 1  # set the selected item as checked
+
         self.timer.stop()
-        self.timer.interval = self.refresh_interval
+        self.timer.interval = self.get_refresh_interval(sender.title)
         self.timer.start()
 
         self.refresh_interval_label = sender.title
-        refresh_interval_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
+        self.refresh_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
         self.save_config()
 
     @rumps.clicked("About")

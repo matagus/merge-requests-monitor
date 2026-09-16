@@ -326,23 +326,41 @@ class TestMergeRequestsMonitorApp:
         """Test changing refresh interval"""
         with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
             app = MergeRequestsMonitorApp()
-        initial_interval = app.refresh_interval_label
 
         # Mock sender (menu item)
         sender = Mock()
         sender.title = "10m"
         sender.state = 0
 
-        # Mock menu structure - need to replace the method itself
-        refresh_menu_item = Mock()
-        refresh_menu_item.title = f"Refresh Interval: {initial_interval}"
-        app.menu.values = Mock(return_value=[refresh_menu_item])
-
         app.set_refresh_interval(sender)
 
         assert sender.state == 1  # Checkbox state
         assert app.refresh_interval_label == "10m"
-        assert app.refresh_interval == 600  # 10 minutes in seconds
+        assert app.timer.interval == 600  # 10 minutes in seconds
+
+    def test_set_refresh_interval_retitles_the_refresh_item_only(self):
+        """The item is reached through the reference build_menu kept, never by menu position.
+
+        Looking the submenu up by index used to grab whichever item came first, which after
+        "Last updated" was added to the top of the menu meant that line was retitled and the
+        interval went on saying the value the app no longer runs on.
+        """
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        app.set_refresh_interval(Mock(title="30m", state=0))
+
+        assert app.refresh_menu.title == "Refresh Interval: 30m"
+        assert app.menu.values()[0].title.startswith("Last updated:")
+
+    def test_set_refresh_interval_stores_no_second_copy_of_the_interval(self):
+        """The label is the state; the seconds are derived from it on every click."""
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        app.set_refresh_interval(Mock(title="1h", state=0))
+
+        assert not hasattr(app, "refresh_interval")
 
     def test_set_preferences(self):
         """Test setting preferences via dialog"""
