@@ -6,7 +6,14 @@ from unittest.mock import Mock, call, mock_open, patch
 import pytest
 import rumps
 
-from main import APP_NAME, DEFAULT_FEED_URL, DEFAULT_REFRESH_INTERVAL, FEED_CACHE_FILE, MergeRequestsMonitorApp
+from main import (
+    APP_NAME,
+    DEFAULT_FEED_URL,
+    DEFAULT_REFRESH_INTERVAL,
+    FEED_CACHE_FILE,
+    MergeRequestsMonitorApp,
+    web_url,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -430,6 +437,112 @@ class TestMergeRequestsMonitorApp:
         app.refresh(None)
         assert len(app.merge_requests) == 1
         assert app.merge_requests[0].title == "MR 3"
+
+
+class TestFeedSuppliedLinks:
+    """A feed chooses the link the app is told to open, and must not choose what runs (#202)."""
+
+    REFUSED = [
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "mailto:someone@gitlab.com",
+        "about:config",
+        "gitlab-runners://open",
+        "ftp://gitlab.com/mr/1",
+        "ht\ntp://gitlab.com/mr/1",
+        "https://gitlab.com/m r/1",
+        "https://gitlab.com/mr/\x001",
+        "//gitlab.com/mr/1",
+        "gitlab.com/mr/1",
+        "/Users/me/.ssh/id_rsa",
+        "https://",
+        "",
+    ]
+
+    @pytest.mark.parametrize(
+        "link, expected",
+        [
+            ("https://gitlab.com/mr/1", "https://gitlab.com/mr/1"),
+            ("http://gitlab.example.test/mr/1", "http://gitlab.example.test/mr/1"),
+            # the scheme is matched case insensitively, the rest of the url is left alone
+            ("HTTPS://GitLab.com/mr/1", "HTTPS://GitLab.com/mr/1"),
+            # an atom entry can pad a link out with whitespace, which is not part of the address
+            ("  https://gitlab.com/mr/1\n", "https://gitlab.com/mr/1"),
+        ],
+    )
+    def test_web_links_come_back_as_the_address_to_open(self, link, expected):
+        assert web_url(link) == expected
+
+    @pytest.mark.parametrize("link", REFUSED)
+    def test_links_that_are_not_web_addresses_are_refused(self, link):
+        assert web_url(link) is None
+
+    def test_a_link_urlsplit_cannot_parse_is_refused_not_raised(self):
+        """An unparsable netloc has to end the same way a refused scheme does.
+
+        The menu callback runs on the app's main loop, so a ValueError escaping here is the app
+        dying on a click, and the click is all a hostile feed needed to cause it.
+        """
+        assert web_url("http://[::1") is None
+
+    @pytest.mark.parametrize("link", REFUSED + ["http://[::1"])
+    @patch("main.rumps.alert")
+    @patch("main.webbrowser.open_new_tab")
+    def test_open_url_opens_nothing_for_a_refused_link(self, mock_browser, mock_alert, link):
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        assert app.open_url(link) is False
+        mock_browser.assert_not_called()
+        assert mock_alert.called
+
+    @patch("main.rumps.alert")
+    @patch("main.webbrowser.open_new_tab")
+    def test_the_refusal_does_not_quote_the_link_it_refused(self, mock_browser, mock_alert):
+        """The alert is app-authored text; a feed's string stays out of the UI it cannot use."""
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        app.open_url("file:///secret/path")
+
+        shown = " ".join(str(arg) for args in mock_alert.call_args for arg in args)
+        assert "/secret/path" not in shown
+
+    @patch("main.rumps.alert")
+    @patch("main.webbrowser.open_new_tab")
+    def test_open_url_still_opens_a_web_link(self, mock_browser, mock_alert):
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        assert app.open_url("  https://gitlab.com/mr/1 ") is True
+        mock_browser.assert_called_once_with("https://gitlab.com/mr/1")
+        assert mock_alert.call_args_list == []
+
+    @patch("main.rumps.alert")
+    @patch("main.webbrowser.open_new_tab")
+    def test_clicking_an_item_built_from_a_hostile_link_opens_nothing(self, mock_browser, mock_alert):
+        """The guard sits on the click path itself, not only on the helper."""
+        entry = Mock(title="Fix bug", link="file:///System/Library/CoreServices/Finder.app")
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        app.merge_request_menu_item(entry).callback(None)
+
+        mock_browser.assert_not_called()
+        assert mock_alert.called
+
+    @patch("main.rumps.alert")
+    @patch("main.webbrowser.open_new_tab")
+    def test_a_good_link_from_a_feed_is_opened(self, mock_browser, mock_alert):
+        entry = Mock(title="Fix bug", link="https://gitlab.com/mr/1")
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        app.merge_request_menu_item(entry).callback(None)
+
+        mock_browser.assert_called_once_with("https://gitlab.com/mr/1")
+        assert mock_alert.call_args_list == []
 
 
 class TestFeedCachePersistence:
