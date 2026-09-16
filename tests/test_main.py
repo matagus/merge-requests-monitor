@@ -1,3 +1,4 @@
+import configparser
 import json
 from types import SimpleNamespace
 from unittest.mock import Mock, patch, mock_open
@@ -5,7 +6,7 @@ from unittest.mock import Mock, patch, mock_open
 import pytest
 import rumps
 
-from main import APP_NAME, DEFAULT_FEED_URL, FEED_CACHE_FILE, MergeRequestsMonitorApp
+from main import APP_NAME, DEFAULT_FEED_URL, DEFAULT_REFRESH_INTERVAL, FEED_CACHE_FILE, MergeRequestsMonitorApp
 
 
 @pytest.fixture(autouse=True)
@@ -687,3 +688,67 @@ class TestConfigFeedUrls:
         app = self._start(app_support_folder, f"feeds = {self.FEED_A} , ,{self.FEED_B} ,\n")
 
         assert app.feed_urls == [self.FEED_A, self.FEED_B]
+
+
+class TestUnusableConfigFile:
+    """A `config.ini` we cannot start on is treated like a missing one (issue #209)."""
+
+    FEED_A = "https://gitlab.com/a.atom"
+
+    def _write(self, app_support_folder, content):
+        (app_support_folder / "config.ini").write_text(content)
+
+    def test_an_empty_config_file_is_replaced_by_the_defaults(self, app_support_folder):
+        """The crash this guards against: KeyError: 'Gitlab' out of get_or_create_config()."""
+        self._write(app_support_folder, "")
+
+        app = MergeRequestsMonitorApp()
+
+        assert app.refresh_interval_label == DEFAULT_REFRESH_INTERVAL
+        assert app.feed_urls == [DEFAULT_FEED_URL]
+
+    def test_a_config_holding_a_different_section_is_replaced_by_the_defaults(self, app_support_folder):
+        self._write(app_support_folder, "[Github]\nrefresh_interval = 1h\n")
+
+        app = MergeRequestsMonitorApp()
+
+        assert app.refresh_interval_label == DEFAULT_REFRESH_INTERVAL
+        assert app.feed_urls == [DEFAULT_FEED_URL]
+
+    def test_the_replaced_config_is_written_to_disk(self, app_support_folder):
+        """The defaults have to survive the restart, otherwise every start repeats the repair."""
+        self._write(app_support_folder, "")
+
+        MergeRequestsMonitorApp()
+
+        config = configparser.ConfigParser()
+        config.read_string((app_support_folder / "config.ini").read_text())
+        assert config["Gitlab"]["refresh_interval"] == DEFAULT_REFRESH_INTERVAL
+        assert DEFAULT_FEED_URL in config["Gitlab"]["feeds"]
+
+        restarted = MergeRequestsMonitorApp()
+        assert restarted.refresh_interval_label == DEFAULT_REFRESH_INTERVAL
+
+    def test_a_gitlab_section_without_a_refresh_interval_starts_on_the_default(self, app_support_folder):
+        """The crash this guards against: KeyError: 'refresh_interval' out of __init__()."""
+        self._write(app_support_folder, f"[Gitlab]\nfeeds = {self.FEED_A}\n")
+
+        app = MergeRequestsMonitorApp()
+
+        assert app.refresh_interval_label == DEFAULT_REFRESH_INTERVAL
+        assert app.feed_urls == [self.FEED_A]
+
+    def test_a_blank_refresh_interval_starts_on_the_default(self, app_support_folder):
+        """An existing key holding nothing usable stands in for the key being absent."""
+        self._write(app_support_folder, f"[Gitlab]\nrefresh_interval =\nfeeds = {self.FEED_A}\n")
+
+        app = MergeRequestsMonitorApp()
+
+        assert app.refresh_interval_label == DEFAULT_REFRESH_INTERVAL
+
+    def test_the_configured_refresh_interval_is_still_read(self, app_support_folder):
+        self._write(app_support_folder, "[Gitlab]\nrefresh_interval = 10m\n")
+
+        app = MergeRequestsMonitorApp()
+
+        assert app.refresh_interval_label == "10m"
