@@ -37,9 +37,24 @@ app you download from places other than the App Store.
   [`py2app`](https://github.com/ronaldoussoren/py2app), both of which are macOS-specific.
 - Python 3.11, 3.12, 3.13 or 3.14 when building the app bundle or running it from source.
 
-## Build & run
+## Which flow to use
 
-Alternatively, you can locally build the app bundle:
+There are two separate flows, chosen by what you are doing, not by taste:
+
+| You want to | Use |
+|---|---|
+| Run the app from source while developing | [hatch](#running-as-a-python-app) |
+| Build the `.app` bundle that releases ship | [pip + py2app](#build-the-app-bundle) |
+| Run the tests | `hatch run test:test` |
+| Change a dependency | `hatch run deps:sync` |
+
+`hatch` creates its own environment from `pyproject.toml` and never reads `requirements.txt`;
+the `pip` flow installs the locked `requirements.txt` into an environment you pick yourself.
+
+## Build the app bundle
+
+Building the bundle is the one flow that uses `requirements.txt`. In a virtualenv of your own
+(`python -m venv .venv && source .venv/bin/activate` -- `.venv/` is git-ignored):
 
 ```bash
   pip install -r requirements.txt
@@ -48,13 +63,20 @@ Alternatively, you can locally build the app bundle:
 
 `requirements.txt` is a generated file -- see [Dependency management](#dependency-management).
 
-And the just run the app:
+Then run the app. The bundle is named after `name` in `setup.py`, so it is
+`MergeRequestsMonitor.app`:
 
 ```bash
-  ./dist/main.app/Contents/MacOS/main
+  ./dist/MergeRequestsMonitor.app/Contents/MacOS/MergeRequestsMonitor
 ```
 
 **TIP**: Move the above `.app` bundle to `/Applications` folder if you want to run it as any other install app.
+
+`python setup.py py2app` is the legacy invocation, and setuptools will say so: py2app is a
+setuptools command, so there is no build frontend that produces the bundle for you. It is also
+what CI and the release workflow run through `.github/actions/build-app`, so building this way
+reproduces exactly what a release ships. `pip install .` is not an alternative here -- it builds a
+wheel of `main.py` and `__about__.py` and no `.app` at all.
 
 ## Dependency management
 
@@ -93,7 +115,7 @@ Three decisions baked into that setup:
 ## Running as a Python app
 
 If you don't want to build the MacOS app, you still can run this as a simple Python script. You need
-[hatch](https://hatch.pypa.io/latest/install/) installed. then just:
+[hatch](https://hatch.pypa.io/latest/install/) installed. Then just:
 
 ```bash
 hatch run app
