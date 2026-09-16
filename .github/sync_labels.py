@@ -85,7 +85,7 @@ def read_config(path: Path) -> dict[str, dict[str, str]]:
 
         name = str(table.get("name", section)).strip()
         if name != section:
-            raise SyncError(f"label '{section}': section name must equal the 'name' field " f"(got {name!r})")
+            raise SyncError(f"label '{section}': section name must equal the 'name' field (got {name!r})")
         if not name:
             raise SyncError(f"label '{section}': name must not be empty")
 

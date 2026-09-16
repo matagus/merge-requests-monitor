@@ -14,5 +14,14 @@ htmlcov/
 .pytest_cache/
 db.sqlite3
 env/
+
+# Local virtualenvs. hatch builds its environments in the project root, named after the
+# project (`merge-requests-monitor/`, `merge-requests-monitor-test-py3.14/` for a matrix
+# env), and hides each one behind a `.gitignore` containing `*` that it writes inside the
+# directory itself -- so nothing in the repository ignored them, and a checkout that
+# predates the venv or a tool that only reads the repo's own ignore file was unprotected.
+/merge-requests-monitor*/
+/.venv*/
+/venv*/
 .python-version
 WARP.md
