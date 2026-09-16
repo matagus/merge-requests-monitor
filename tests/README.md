@@ -107,15 +107,27 @@ A feed that cannot be read is kept separate from the healthy ones, and the menu 
 - ✅ **Warning clears** (`test_the_warning_clears_when_the_feed_recovers`) - Tests a later good refresh resets the state
 - ✅ **304 is not a failure** (`test_a_not_modified_feed_is_not_reported_as_broken`) - Tests an unchanged feed reuses its cache instead of being emptied or flagged
 
+### Config Feed URLs
+The feed urls come from a `config.ini` the user may have edited by hand, or that a crash left half written, so reading it
+has to cope with whatever it finds. Covered by `TestConfigFeedUrls`:
+
+- ✅ **Configured feeds** (`test_the_configured_feeds_are_read`) - Tests the comma separated `feeds` key becomes one url per entry
+- ✅ **Legacy key** (`test_the_legacy_single_feed_is_still_read`) - Tests the singular `feed` key the pre-multi-feed versions wrote still works
+- ✅ **Missing keys** (`test_a_config_without_either_feed_key_starts_on_the_default`) - Tests a config with neither `feeds` nor `feed` starts on `DEFAULT_FEED_URL` instead of raising `KeyError`
+- ✅ **Blank key** (`test_blank_feed_entries_fall_back_to_the_default`) - Tests an empty `feeds` is treated as the missing key it stands for
+- ✅ **Trimmed entries** (`test_feed_entries_are_trimmed_and_empties_dropped`) - Tests surrounding spaces go and empty entries are dropped
+
 ### Timer Management
 - ✅ **Auto-start** (`test_timer_starts_automatically`) - Tests timer initialization
 
 ### Test Statistics
-- **Total tests**: 39 (26 for `MergeRequestsMonitorApp`, 6 for feed cache persistence, 7 for feed failures)
-- **Methods tested**: 18 of 18 (the uncovered lines are the legacy single-feed `config.ini` fallback, the `OSError`
-  best-effort cache-write fallback and the `__main__` entrypoint)
-- **Line coverage**: 97% on `main.py`
-- **Edge cases covered**: HTML entities, draft MRs, multiple feeds, parsing errors, corrupt and future-dated cache files
+- **Total tests**: 44 (26 for `MergeRequestsMonitorApp`, 6 for feed cache persistence, 7 for feed failures, 5 for config
+  feed urls)
+- **Methods tested**: 19 of 19 (the uncovered lines are the `OSError` best-effort cache-write fallback and the `__main__`
+  entrypoint)
+- **Line coverage**: 98% on `main.py`
+- **Edge cases covered**: HTML entities, draft MRs, multiple feeds, parsing errors, corrupt and future-dated cache files,
+  config files missing both feed keys and configs written by the legacy single-feed version
 
 ## Testing Best Practices
 
