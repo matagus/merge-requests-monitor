@@ -324,21 +324,26 @@ class TestMergeRequestsMonitorApp:
         item.callback(None)
         mock_browser.assert_called_once_with("https://gitlab.com/mr/1")
 
+    @staticmethod
+    def _marked(app):
+        """The titles of the submenu items showing a check mark right now.
+
+        Read off the real rumps items rather than off a Mock: `Mock(state=0).state == 1` only proves
+        the assignment line ran, which is how #75 outlived every previous change to this callback.
+        The state that reaches the screen is the one on the NSMenuItem behind the item.
+        """
+        return [item.title for item in app.refresh_menu.values() if item.state == 1]
+
     def test_set_refresh_interval(self):
         """Test changing refresh interval"""
         with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
             app = MergeRequestsMonitorApp()
 
-        # Mock sender (menu item)
-        sender = Mock()
-        sender.title = "10m"
-        sender.state = 0
+        app.set_refresh_interval(Mock(title="10m"))
 
-        app.set_refresh_interval(sender)
-
-        assert sender.state == 1  # Checkbox state
         assert app.refresh_interval_label == "10m"
         assert app.timer.interval == 600  # 10 minutes in seconds
+        assert self._marked(app) == ["10m"]
 
     def test_set_refresh_interval_retitles_the_refresh_item_only(self):
         """The item is reached through the reference build_menu kept, never by menu position.
@@ -363,6 +368,56 @@ class TestMergeRequestsMonitorApp:
         app.set_refresh_interval(Mock(title="1h", state=0))
 
         assert not hasattr(app, "refresh_interval")
+
+    def test_the_saved_interval_is_marked_when_the_menu_is_built(self, app_support_folder):
+        """#75 at launch: build_menu knew the label but marked nothing.
+
+        A fresh rumps.MenuItem starts unchecked, so opening the submenu after starting on a saved
+        "30m" showed seven items with nothing saying which one the app was running on.
+        """
+        (app_support_folder / "config.ini").write_text("[Gitlab]\nrefresh_interval = 30m\n")
+
+        app = MergeRequestsMonitorApp()
+
+        assert self._marked(app) == ["30m"]
+
+    def test_clicking_a_second_interval_moves_the_mark(self):
+        """#75 on click: marking only the sender left the previous item checked as well.
+
+        Two items could then claim to be the selected one, which reads as a worse answer than none.
+        """
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        app.set_refresh_interval(Mock(title="10m"))
+        app.set_refresh_interval(Mock(title="30m"))
+
+        assert self._marked(app) == ["30m"]
+
+    def test_the_mark_survives_the_refresh_that_rebuilds_the_menu(self):
+        """#75 as reported: the check mark disappeared on the next poll.
+
+        refresh() ends by rebuilding the menu, so the mark a click had made was gone by the next
+        interval while the setting itself was still in force.
+        """
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+            app.set_refresh_interval(Mock(title="1h"))
+
+            app.refresh(None)
+
+            assert self._marked(app) == ["1h"]
+            assert app.refresh_menu.title == "Refresh Interval: 1h"
+
+    def test_an_interval_the_timer_refuses_leaves_the_marks_alone(self):
+        """The marks move last, so a title that never reaches the timer cannot be marked."""
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        with pytest.raises(KeyError):
+            app.set_refresh_interval(Mock(title="15m"))
+
+        assert self._marked(app) == [DEFAULT_REFRESH_INTERVAL]
 
     def test_callbacks_are_bound_where_the_menu_is_built(self):
         """#204: the menu is the only place a callback is bound.

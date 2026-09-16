@@ -154,6 +154,7 @@ class MergeRequestsMonitorApp(rumps.App):
         )
         for freq in ["60s", "5m", "10m", "30m", "1h", "3h", "6h"]:
             self.refresh_menu.add(rumps.MenuItem(freq, callback=self.set_refresh_interval))
+        self.mark_refresh_interval()
 
         self.menu.add(self.refresh_menu)
         self.menu.add(rumps.rumps.SeparatorMenuItem())
@@ -190,6 +191,21 @@ class MergeRequestsMonitorApp(rumps.App):
         self.menu.add(rumps.MenuItem("Preferences", callback=self.set_preferences))
         self.menu.add(rumps.MenuItem("About", callback=self.about))
         self.menu.add(rumps.MenuItem("Quit", key="q", callback=self.quit_application))
+
+    def mark_refresh_interval(self):
+        """Check the item the timer runs on, and uncheck every other one.
+
+        #75: build_menu() rebuilds this submenu from scratch, because refresh() calls it on every
+        poll, and a new rumps.MenuItem starts unchecked. Marking only the clicked item therefore lost
+        the mark at the next refresh, and left the previous item marked too, so two of them could
+        claim to be selected at once. rumps has no radio-group behaviour -- state belongs to each
+        NSMenuItem -- so the marks have to be derived from self.refresh_interval_label, the one value
+        that says what the app actually runs on, and derived wherever the items are made or the label
+        changes. A label that is not one of the items leaves the submenu unmarked rather than
+        checking a guess: that label is refused by start_timer before a menu ever appears.
+        """
+        for item in self.refresh_menu.values():
+            item.state = 1 if item.title == self.refresh_interval_label else 0
 
     def start_timer(self):
         freq_interval = self.get_refresh_interval(self.refresh_interval_label)
@@ -443,15 +459,18 @@ class MergeRequestsMonitorApp(rumps.App):
         The label is what the interval becomes: `get_refresh_interval` translates it into the
         number of seconds for the timer, and nothing else has to remember that number between
         one click and the next, so it stays a local here.
-        """
-        sender.state = 1  # set the selected item as checked
 
+        The marks are moved last, once the label has settled: a title that `get_refresh_interval`
+        refuses raises before anything has been checked, so a rejected click cannot leave the menu
+        pointing at an interval the timer never got.
+        """
         self.timer.stop()
         self.timer.interval = self.get_refresh_interval(sender.title)
         self.timer.start()
 
         self.refresh_interval_label = sender.title
         self.refresh_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
+        self.mark_refresh_interval()
         self.save_config()
 
     def about(self, _):
