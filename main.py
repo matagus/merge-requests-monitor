@@ -44,7 +44,7 @@ class MergeRequestsMonitorApp(rumps.App):
         self.saved_feed_cache = None
 
         config = self.get_or_create_config()
-        self.refresh_interval_label = config["refresh_interval"]
+        self.refresh_interval_label = self.read_refresh_interval(config)
         self.feed_urls = self.read_feed_urls(config)
 
         # make this app do what it must do!
@@ -136,7 +136,28 @@ class MergeRequestsMonitorApp(rumps.App):
             }
             config.write(f)
 
+    def default_config(self):
+        """The section a config file is rewritten from when it cannot be used as it stands."""
+        return {
+            "feeds": f"{DEFAULT_FEED_URL}\n",
+            "refresh_interval": DEFAULT_REFRESH_INTERVAL,
+        }
+
     def get_or_create_config(self):
+        """The `[Gitlab]` section, writing the defaults over a config file that cannot be used.
+
+        A file that is absent and a file that is there but unusable are the same problem for
+        the person using the app: neither has a `[Gitlab]` section to start on. Only the first
+        one raised FileNotFoundError, so the second (an empty file, or one holding a different
+        section) let `config["Gitlab"]` raise a KeyError the except clause never caught, and
+        the app died before the menu existed. With no menu there is no Preferences dialog to
+        correct the file in, and the file itself sits under ~/Library/Application Support/.
+
+        An unusable file is replaced by the defaults rather than worked around, which is what
+        makes the "or create" in the name true for both cases: whatever comes back can be read,
+        and the Preferences dialog is there to put the real feed urls into it.
+        """
+
         def _get_config():
             with self.open("config.ini") as f:
                 config.read_file(f)
@@ -147,12 +168,9 @@ class MergeRequestsMonitorApp(rumps.App):
         try:
             return _get_config()
 
-        except FileNotFoundError:
+        except (FileNotFoundError, KeyError):
             with self.open("config.ini", "w") as f:
-                config["Gitlab"] = {
-                    "feeds": f"{DEFAULT_FEED_URL}\n",
-                    "refresh_interval": DEFAULT_REFRESH_INTERVAL,
-                }
+                config["Gitlab"] = self.default_config()
                 config.write(f)
 
             return _get_config()
@@ -171,6 +189,22 @@ class MergeRequestsMonitorApp(rumps.App):
         configured = config.get("feeds", fallback="") or config.get("feed", fallback="")
         urls = [url.strip() for url in configured.split(",") if url.strip()]
         return urls or [DEFAULT_FEED_URL]
+
+    def read_refresh_interval(self, config):
+        """The refresh interval the app starts on, whatever shape the config file is in.
+
+        Same shape as #198, one line above the feeds: indexing the section directly meant a
+        `[Gitlab]` without a `refresh_interval` key, written by an older version or edited by
+        hand, raised an uncaught KeyError out of __init__, which is the crash that leaves no
+        menu behind. A missing key is no reason to refuse to start, so fall back to the
+        default; a blank value counts as the missing key it stands for, as it does in
+        read_feed_urls().
+
+        Only the presence of the key is handled here. A value that is not one of the menu
+        labels is a bad value rather than a missing key, and stays the separate issue it is.
+        """
+        label = config.get("refresh_interval", fallback="").strip()
+        return label or DEFAULT_REFRESH_INTERVAL
 
     def get_refresh_interval(self, label):
         return {

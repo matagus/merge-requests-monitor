@@ -117,17 +117,29 @@ has to cope with whatever it finds. Covered by `TestConfigFeedUrls`:
 - ✅ **Blank key** (`test_blank_feed_entries_fall_back_to_the_default`) - Tests an empty `feeds` is treated as the missing key it stands for
 - ✅ **Trimmed entries** (`test_feed_entries_are_trimmed_and_empties_dropped`) - Tests surrounding spaces go and empty entries are dropped
 
+### Unusable Config File
+A `config.ini` that is present but cannot be started on is treated like one that is absent. Covered by
+`TestUnusableConfigFile`:
+
+- ✅ **Empty file** (`test_an_empty_config_file_is_replaced_by_the_defaults`) - Tests a file with no `[Gitlab]` section starts on the defaults instead of raising `KeyError: 'Gitlab'`
+- ✅ **Foreign section** (`test_a_config_holding_a_different_section_is_replaced_by_the_defaults`) - Tests a file holding only another section takes the same fallback
+- ✅ **Repair persisted** (`test_the_replaced_config_is_written_to_disk`) - Tests the defaults are written back, so the next start reads a usable file
+- ✅ **Missing interval key** (`test_a_gitlab_section_without_a_refresh_interval_starts_on_the_default`) - Tests a section with no `refresh_interval` starts on `DEFAULT_REFRESH_INTERVAL` and keeps its own feeds
+- ✅ **Blank interval** (`test_a_blank_refresh_interval_starts_on_the_default`) - Tests an empty `refresh_interval` is treated as the missing key it stands for
+- ✅ **Configured interval** (`test_the_configured_refresh_interval_is_still_read`) - Tests a present value is read as it stands and not overwritten by the default
+
 ### Timer Management
 - ✅ **Auto-start** (`test_timer_starts_automatically`) - Tests timer initialization
 
 ### Test Statistics
-- **Total tests**: 44 (26 for `MergeRequestsMonitorApp`, 6 for feed cache persistence, 7 for feed failures, 5 for config
-  feed urls)
-- **Methods tested**: 19 of 19 (the uncovered lines are the `OSError` best-effort cache-write fallback and the `__main__`
+- **Total tests**: 50 (26 for `MergeRequestsMonitorApp`, 6 for feed cache persistence, 7 for feed failures, 5 for config
+  feed urls, 6 for unusable config files)
+- **Methods tested**: 21 of 21 (the uncovered lines are the `OSError` best-effort cache-write fallback and the `__main__`
   entrypoint)
 - **Line coverage**: 98% on `main.py`
 - **Edge cases covered**: HTML entities, draft MRs, multiple feeds, parsing errors, corrupt and future-dated cache files,
-  config files missing both feed keys and configs written by the legacy single-feed version
+  config files missing both feed keys and configs written by the legacy single-feed version, config files with no
+  `[Gitlab]` section and sections missing the `refresh_interval` key
 
 ## Testing Best Practices
 
