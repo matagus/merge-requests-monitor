@@ -53,9 +53,11 @@ path = "__about__.py"
 #   tarfile.AbsoluteLinkError: 'mergerequestsmonitor-0.6.0/merge-requests-monitor/bin/python'
 #   is a link to an absolute path
 #
-# The root .gitignore already keeps build/, dist/, .eggs/, htmlcov/ and __pycache__/ out
-# of the sdist because hatchling does read that file; these environment directories are
-# the part it cannot see, so they are excluded here rather than left to ignore files.
+# The root .gitignore already keeps build/, dist/, .eggs/ and htmlcov/ out of the sdist
+# because hatchling does read that file, and it now ignores these environment directories
+# as well. The explicit exclude stays: it has to hold in a checkout where that ignore file
+# says nothing (an export, an older clone), so the sdist's contents are stated here rather
+# than left to whatever git ignores locally.
 [tool.hatch.build.targets.sdist]
 exclude = [
     "/merge-requests-monitor*",
