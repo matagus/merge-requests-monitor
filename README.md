@@ -46,6 +46,10 @@ Alternatively, you can locally build the app bundle:
   python setup.py py2app
 ```
 
+`requirements.txt` is a generated file: `pyproject.toml`'s `[project] dependencies` are the single source of
+truth, `uv.lock` is built from them and `requirements.txt` is exported from that lockfile. After changing a
+dependency, refresh both derived files with `hatch run deps:sync` (CI fails if they drift).
+
 And the just run the app:
 
 ```bash

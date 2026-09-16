@@ -38,7 +38,9 @@ OPTIONS = {
 # Setuptools copies PEP 621 `[project] dependencies` from pyproject.toml into
 # `distribution.install_requires`, so the check fires even though this file never passes
 # install_requires. The runtime requirements must already be installed when
-# `python setup.py py2app` runs; the release workflow does that from requirements.txt.
+# `python setup.py py2app` runs; the release workflow does that from requirements.txt,
+# which is generated from `[project] dependencies` by `uv export` (run
+# `hatch run deps:sync` after changing them; the CI `deps` job enforces that).
 # `rumps` is force-included through OPTIONS["packages"] and feedparser is picked up by
 # modulegraph from main.py's imports.
 class py2app(_py2app):

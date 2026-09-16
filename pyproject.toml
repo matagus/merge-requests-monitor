@@ -25,6 +25,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development",
 ]
+# Single source of truth for the app's dependencies. uv.lock is derived from this list
+# by `uv lock` and requirements.txt from uv.lock by `uv export`; edit them only through
+# `hatch run deps:sync` (see [tool.hatch.envs.deps]), never by hand.
 dependencies = [
   "feedparser==6.0.14",
   "py2app==0.28.10",
@@ -67,6 +70,18 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 app = "python main.py"
+
+# Regenerates the two derived dependency files from this manifest: `uv lock` refreshes
+# uv.lock from [project] dependencies, `uv export` rewrites requirements.txt from that
+# lockfile. Neither is hand-edited -- the CI `deps` job fails if either drifts -- so run
+# `hatch run deps:sync` whenever [project] dependencies change. `--no-hashes` because
+# rumps ships no wheel: emitting hashes would put pip into --require-hashes mode, which
+# then also demands hashes for that sdist's build-system requirements.
+[tool.hatch.envs.deps]
+dependencies = ["uv"]
+
+[tool.hatch.envs.deps.scripts]
+sync = "uv lock && uv export --frozen --no-emit-project --no-hashes --no-annotate -o requirements.txt"
 
 [tool.hatch.envs.test]
 dependencies = [
