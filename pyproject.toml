@@ -72,9 +72,13 @@ app = "python main.py"
 
 # The derived dependency files, generated and verified through one pinned uv: CI's `deps`
 # job runs `hatch run deps:check` via this same environment, so the two cannot disagree
-# about the export layout. Bump `uv` here, then re-run `hatch run deps:sync`. See
-# "Dependency management" in README.md.
+# about the export layout. Bump `uv` here, then re-run `hatch run deps:sync`. The
+# environment is detached because it only needs the uv binary: installing this project
+# would pull rumps' pyobjc dependencies, whose sdists build only on macOS (`sw_vers`),
+# which is what made the Linux `deps` job fail before.
+# See "Dependency management" in README.md.
 [tool.hatch.envs.deps]
+detached = true
 dependencies = ["uv==0.12.15"]
 env-vars = { UV_EXPORT_ARGS = "--frozen --no-emit-project --no-hashes --no-annotate" }
 
