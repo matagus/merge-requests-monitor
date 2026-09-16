@@ -1,5 +1,6 @@
 import configparser
 import functools
+import hashlib
 import html
 import json
 import os
@@ -21,7 +22,8 @@ ICON_PATH = "media/icon.png"
 DEFAULT_REFRESH_INTERVAL = "5m"
 DEFAULT_FEED_URL = "https://gitlab.com/<username>/<repo>/-/merge_requests.atom?feed_token=<token>&state=opened"
 FEED_CACHE_FILE = "feed_cache.json"
-FEED_CACHE_VERSION = 1
+# 2: the feeds are keyed by hash rather than by url, so no feed token is written to disk.
+FEED_CACHE_VERSION = 2
 # The schemes a feed-supplied link may be opened as. A feed is remote input the app only reads,
 # so handing its links straight to the browser lets it name a file:// address to read the disk
 # with, or a custom scheme to launch whatever is registered for it on this machine.
@@ -57,6 +59,21 @@ def web_url(link):
     return None
 
 
+def feed_cache_key(feed_url):
+    """The key a feed is filed under in the cache: its url, hashed.
+
+    A Gitlab feed url carries a personal `feed_token` in its query string, which is the whole
+    credential for reading that user's merge requests. The cache lives in Application Support as
+    plain JSON, and keying it by url copied that credential into a second file nobody needed it
+    in: the config already holds the urls, and removing a feed means deleting it from exactly
+    one place. A digest of the url still identifies the feed, which is all the cache needs of
+    it, and looking a feed up is just hashing the url we are about to fetch anyway.
+
+    The in-memory cache stays keyed by url. Only the file sees this, and only one way.
+    """
+    return hashlib.sha256(feed_url.encode()).hexdigest()
+
+
 class MergeRequestsMonitorApp(rumps.App):
     def __init__(self):
         super().__init__(
@@ -72,15 +89,17 @@ class MergeRequestsMonitorApp(rumps.App):
         # feed urls that could not be read during the last refresh
         self.failed_feeds = []
         self.merge_requests = []
-        # conditional GET validators (ETag / Last-Modified) plus the entries they were fetched
-        # with, per feed url. Kept on disk so a restart or a crash does not turn into a full
-        # re-download of every feed.
-        self.feed_cache = self.load_feed_cache()
-        self.saved_feed_cache = None
 
         config = self.get_or_create_config()
         self.refresh_interval_label = self.read_refresh_interval(config)
         self.feed_urls = self.read_feed_urls(config)
+
+        # conditional GET validators (ETag / Last-Modified) plus the entries they were fetched
+        # with, per feed url. Kept on disk so a restart or a crash does not turn into a full
+        # re-download of every feed. Read after the feeds are known: the file keys its entries
+        # by hash, so a feed's entry is found by hashing the url it belongs to.
+        self.feed_cache = self.load_feed_cache()
+        self.saved_feed_cache = None
 
         # make this app do what it must do!
         self.build_menu()
@@ -127,14 +146,16 @@ class MergeRequestsMonitorApp(rumps.App):
 
         self.menu.add(rumps.MenuItem(self.last_updated_label()))
 
-        refresh_menu = rumps.MenuItem(
+        # held on the instance so set_refresh_interval can retitle it without going through the
+        # menu by position, which looked the first item up: the "Last updated" line, not this one
+        self.refresh_menu = rumps.MenuItem(
             f"Refresh Interval: {self.refresh_interval_label}",
             callback=self.set_refresh_interval,
         )
         for freq in ["60s", "5m", "10m", "30m", "1h", "3h", "6h"]:
-            refresh_menu.add(rumps.MenuItem(freq, callback=self.set_refresh_interval))
+            self.refresh_menu.add(rumps.MenuItem(freq, callback=self.set_refresh_interval))
 
-        self.menu.add(refresh_menu)
+        self.menu.add(self.refresh_menu)
         self.menu.add(rumps.rumps.SeparatorMenuItem())
 
         if len(self.merge_requests) == 0:
@@ -161,6 +182,11 @@ class MergeRequestsMonitorApp(rumps.App):
                     self.menu.add(self.merge_request_menu_item(merge_request))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
+        # These three are wired here and nowhere else. @rumps.clicked would register the same
+        # method a second time, against a menu item found by title when the app starts running:
+        # a title that stops matching adds a phantom entry instead of failing, and the binding it
+        # makes points at whichever item existed then, not at the replacements build_menu puts
+        # there on every refresh.
         self.menu.add(rumps.MenuItem("Preferences", callback=self.set_preferences))
         self.menu.add(rumps.MenuItem("About", callback=self.about))
         self.menu.add(rumps.MenuItem("Quit", key="q", callback=self.quit_application))
@@ -266,11 +292,15 @@ class MergeRequestsMonitorApp(rumps.App):
         return os.path.join(self._application_support, filename)
 
     def feed_cache_payload(self):
-        """JSON serializable view of the cache, pruned to the feeds currently configured."""
+        """JSON serializable view of the cache, pruned to the feeds currently configured.
+
+        The feeds are keyed by feed_cache_key(), which is what keeps the feed token each url
+        carries out of a file that has no use for it.
+        """
         return {
             "version": FEED_CACHE_VERSION,
             "feeds": {
-                feed_url: {
+                feed_cache_key(feed_url): {
                     "etag": cached["etag"],
                     "modified": cached["modified"],
                     "entries": [{"title": entry.title, "link": entry.link} for entry in cached["entries"]],
@@ -295,14 +325,26 @@ class MergeRequestsMonitorApp(rumps.App):
         self.saved_feed_cache = payload
 
     def load_feed_cache(self):
-        """Read the cache back, ignoring anything we cannot make sense of."""
+        """Read the cache back, ignoring anything we cannot make sense of.
+
+        Each configured feed is looked up under the hash of its own url, so a file written for
+        other feeds contributes nothing and a feed that was removed has its entry dropped without
+        a separate pruning pass. Anything keyed by something else -- a version 1 file, whose keys
+        were the feed urls with their tokens in them -- is never reached, and the next save
+        replaces that file with one that holds no urls at all.
+        """
         try:
             with open(self.feed_cache_path()) as f:
                 stored = json.load(f)
             if stored.get("version") != FEED_CACHE_VERSION:
                 return {}
-            return {
-                feed_url: {
+            feeds = stored.get("feeds") or {}
+            cache = {}
+            for feed_url in self.feed_urls:
+                cached = feeds.get(feed_cache_key(feed_url))
+                if not isinstance(cached, dict):
+                    continue
+                cache[feed_url] = {
                     "etag": cached.get("etag"),
                     "modified": cached.get("modified"),
                     "entries": [
@@ -310,8 +352,7 @@ class MergeRequestsMonitorApp(rumps.App):
                         for entry in cached.get("entries") or []
                     ],
                 }
-                for feed_url, cached in (stored.get("feeds") or {}).items()
-            }
+            return cache
         except (OSError, ValueError, AttributeError):
             return {}
 
@@ -360,7 +401,6 @@ class MergeRequestsMonitorApp(rumps.App):
         self.update_title()
         self.save_feed_cache()
 
-    @rumps.clicked("Preferences")
     def set_preferences(self, sender):
         response = rumps.Window(
             title="Set Preferences",
@@ -375,7 +415,6 @@ class MergeRequestsMonitorApp(rumps.App):
             self.save_config()
             self.refresh(None)
 
-    @rumps.clicked("Quit")
     def quit_application(self, sender=None):
         self.timer.stop()
         rumps.quit_application(sender)
@@ -399,19 +438,22 @@ class MergeRequestsMonitorApp(rumps.App):
         return True
 
     def set_refresh_interval(self, sender):
-        sender.state = 1  # set the selected item as checked
-        refresh_interval_menu = self.menu.values()[0]
+        """Switch the timer to the interval of the item clicked and say so in the menu.
 
-        self.refresh_interval = self.get_refresh_interval(sender.title)
+        The label is what the interval becomes: `get_refresh_interval` translates it into the
+        number of seconds for the timer, and nothing else has to remember that number between
+        one click and the next, so it stays a local here.
+        """
+        sender.state = 1  # set the selected item as checked
+
         self.timer.stop()
-        self.timer.interval = self.refresh_interval
+        self.timer.interval = self.get_refresh_interval(sender.title)
         self.timer.start()
 
         self.refresh_interval_label = sender.title
-        refresh_interval_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
+        self.refresh_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
         self.save_config()
 
-    @rumps.clicked("About")
     def about(self, _):
         rumps.alert(
             f"{APP_NAME}\n",
