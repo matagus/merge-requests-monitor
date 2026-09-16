@@ -1,7 +1,7 @@
 import configparser
 import json
 from types import SimpleNamespace
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 import rumps
@@ -207,6 +207,20 @@ class TestMergeRequestsMonitorApp:
         menu_titles = [item.title for item in app.menu.values() if hasattr(item, "title")]
         assert 'Fix "bug" & improve' in menu_titles
 
+    def test_build_menu_adds_every_item_when_titles_repeat(self):
+        """Test two MRs sharing a title each get their own menu item"""
+        entry1 = Mock(title="Fix bug", link="https://gitlab.com/mr/1")
+        entry2 = Mock(title="Fix bug", link="https://gitlab.com/mr/2")
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+        app.merge_requests = [entry1, entry2]
+
+        app.build_menu()
+
+        # rumps keys its python-side menu by title, so the repeated title is only visible in the
+        # NSMenu underneath it, which is the menu the user is actually shown
+        assert [str(item.title()) for item in app.menu._menu.itemArray()].count("Fix bug") == 2
+
     def test_build_menu_includes_refresh_interval_options(self):
         """Test menu includes all refresh interval options"""
         with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
@@ -266,34 +280,39 @@ class TestMergeRequestsMonitorApp:
 
     @patch("main.webbrowser.open_new_tab")
     def test_open_url(self, mock_browser):
-        """Test opening MR URL in browser"""
-        entry1 = Mock(title="Fix bug", link="https://gitlab.com/mr/1")
-        entry2 = Mock(title="Add feature", link="https://gitlab.com/mr/2")
+        """Test opening the link the menu item was built for"""
         with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
             app = MergeRequestsMonitorApp()
-        app.merge_requests = [entry1, entry2]
 
-        # Create a mock menu item
-        sender = Mock()
-        sender.title = "Fix bug"
-
-        app.open_url(sender)
+        # the sender rumps passes is the item clicked; its title is none of open_url's business
+        app.open_url("https://gitlab.com/mr/1", Mock(title="Fix bug"))
 
         mock_browser.assert_called_once_with("https://gitlab.com/mr/1")
 
     @patch("main.webbrowser.open_new_tab")
-    def test_open_url_with_html_entities(self, mock_browser):
-        """Test opening MR URL with HTML entities in title"""
+    def test_merge_request_menu_item_binds_its_own_link(self, mock_browser):
+        """Test same-titled MRs open the entry each item was built from"""
+        entry1 = Mock(title="Fix bug", link="https://gitlab.com/mr/1")
+        entry2 = Mock(title="Fix bug", link="https://gitlab.com/mr/2")
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        for entry in (entry1, entry2):
+            app.merge_request_menu_item(entry).callback(None)
+
+        assert mock_browser.call_args_list == [call("https://gitlab.com/mr/1"), call("https://gitlab.com/mr/2")]
+
+    @patch("main.webbrowser.open_new_tab")
+    def test_merge_request_menu_item_unescapes_title(self, mock_browser):
+        """Test the item shows the unescaped title and still carries its own link"""
         entry = Mock(title="Fix &quot;bug&quot;", link="https://gitlab.com/mr/1")
         with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
             app = MergeRequestsMonitorApp()
-        app.merge_requests = [entry]
 
-        sender = Mock()
-        sender.title = 'Fix "bug"'  # Unescaped version
+        item = app.merge_request_menu_item(entry)
 
-        app.open_url(sender)
-
+        assert item.title == 'Fix "bug"'
+        item.callback(None)
         mock_browser.assert_called_once_with("https://gitlab.com/mr/1")
 
     def test_set_refresh_interval(self):
