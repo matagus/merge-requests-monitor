@@ -11,7 +11,9 @@ from main import (
     DEFAULT_FEED_URL,
     DEFAULT_REFRESH_INTERVAL,
     FEED_CACHE_FILE,
+    FEED_CACHE_VERSION,
     MergeRequestsMonitorApp,
+    feed_cache_key,
     web_url,
 )
 
@@ -592,6 +594,12 @@ class TestFeedCachePersistence:
         document.get.side_effect = lambda key, default=None: headers.get(key, default)
         return document
 
+    def _configure(self, app_support_folder, *feed_urls):
+        """Name these feeds in config.ini, which is what the cache is read back against."""
+        (app_support_folder / "config.ini").write_text(
+            "[Gitlab]\nrefresh_interval = 5m\nfeeds = {}\n".format(",".join(feed_urls))
+        )
+
     def test_refresh_writes_the_cache_to_disk(self, app_support_folder):
         app = MergeRequestsMonitorApp()
         app.feed_urls = [self.FEED_URL]
@@ -601,17 +609,24 @@ class TestFeedCachePersistence:
             app.refresh(None)
 
         stored = json.loads((app_support_folder / FEED_CACHE_FILE).read_text())
-        assert stored["version"] == 1
-        assert stored["feeds"][self.FEED_URL]["etag"] == '"etag-v1"'
-        assert stored["feeds"][self.FEED_URL]["entries"] == [{"title": "MR 1", "link": "https://gitlab.com/mr/1"}]
+        assert stored["version"] == FEED_CACHE_VERSION
+        assert stored["feeds"][feed_cache_key(self.FEED_URL)]["etag"] == '"etag-v1"'
+        assert stored["feeds"][feed_cache_key(self.FEED_URL)]["entries"] == [
+            {"title": "MR 1", "link": "https://gitlab.com/mr/1"}
+        ]
 
     def test_validators_and_entries_are_reused_after_a_restart(self, app_support_folder):
+        self._configure(app_support_folder, self.FEED_URL)
         (app_support_folder / FEED_CACHE_FILE).write_text(
-            json.dumps({"version": 1, "feeds": {self.FEED_URL: self._stored(modified="Mon, 01 Jan 2024 00:00:00 GMT")}})
+            json.dumps(
+                {
+                    "version": FEED_CACHE_VERSION,
+                    "feeds": {feed_cache_key(self.FEED_URL): self._stored(modified="Mon, 01 Jan 2024 00:00:00 GMT")},
+                }
+            )
         )
 
         app = MergeRequestsMonitorApp()
-        app.feed_urls = [self.FEED_URL]
         assert app.feed_cache[self.FEED_URL]["etag"] == '"etag-v1"'
 
         document = self._document(status=304, etag='"etag-v2"')
@@ -625,7 +640,9 @@ class TestFeedCachePersistence:
         assert app.title == "1"
         # a rotated ETag is persisted as well
         assert (
-            json.loads((app_support_folder / FEED_CACHE_FILE).read_text())["feeds"][self.FEED_URL]["etag"]
+            json.loads((app_support_folder / FEED_CACHE_FILE).read_text())["feeds"][feed_cache_key(self.FEED_URL)][
+                "etag"
+            ]
             == '"etag-v2"'
         )
 
@@ -634,14 +651,48 @@ class TestFeedCachePersistence:
         app.feed_urls = ["https://gitlab.com/kept.atom"]
         app.feed_cache = {
             "https://gitlab.com/kept.atom": self._cached(),
-            "https://gitlab.com/gone.atom": self._cached(),
+            "https://gitlab.com/removed.atom": self._cached(),
         }
 
         app.save_feed_cache()
 
         assert set(json.loads((app_support_folder / FEED_CACHE_FILE).read_text())["feeds"]) == {
-            "https://gitlab.com/kept.atom"
+            feed_cache_key("https://gitlab.com/kept.atom")
         }
+
+    def test_the_stored_key_is_a_digest_and_not_the_feed_url(self, app_support_folder):
+        """The url carries a private feed token, and the cache has no use for it (#201).
+
+        A feed token is the whole credential for reading a user's merge requests, and
+        Application Support is plain files. Keying the cache by url copied that credential into
+        a second place to be read, backed up and missed when cleaning up.
+        """
+        feed_url = "https://gitlab.com/user/repo/-/merge_requests.atom?feed_token=secret"
+        app = MergeRequestsMonitorApp()
+        app.feed_urls = [feed_url]
+        app.feed_cache = {feed_url: self._cached()}
+
+        app.save_feed_cache()
+
+        written = (app_support_folder / FEED_CACHE_FILE).read_text()
+        assert set(json.loads(written)["feeds"]) == {feed_cache_key(feed_url)}
+        assert feed_url not in written
+        assert "feed_token" not in written
+        assert "secret" not in written
+        assert "merge_requests.atom" not in written
+
+    def test_a_digest_is_stable_per_feed_and_distinct_between_feeds(self):
+        assert feed_cache_key(self.FEED_URL) == feed_cache_key(self.FEED_URL)
+        assert feed_cache_key(self.FEED_URL) != feed_cache_key("https://gitlab.com/other.atom")
+
+    def test_a_cache_keyed_by_plaintext_feed_urls_is_not_read_back(self, app_support_folder):
+        """Version 1 wrote the urls as keys, token included; that file is discarded, not used."""
+        self._configure(app_support_folder, self.FEED_URL)
+        (app_support_folder / FEED_CACHE_FILE).write_text(
+            json.dumps({"version": 1, "feeds": {self.FEED_URL: self._stored()}})
+        )
+
+        assert MergeRequestsMonitorApp().feed_cache == {}
 
     def test_truncated_cache_file_is_ignored(self, app_support_folder):
         (app_support_folder / FEED_CACHE_FILE).write_text('{"version": 1, "feeds": {"https://gitlab.com')
@@ -650,7 +701,7 @@ class TestFeedCachePersistence:
 
     def test_cache_written_by_a_newer_version_is_ignored(self, app_support_folder):
         (app_support_folder / FEED_CACHE_FILE).write_text(
-            json.dumps({"version": 999, "feeds": {self.FEED_URL: self._stored()}})
+            json.dumps({"version": 999, "feeds": {feed_cache_key(self.FEED_URL): self._stored()}})
         )
 
         assert MergeRequestsMonitorApp().feed_cache == {}
@@ -751,9 +802,16 @@ class TestFeedFailures:
             app.refresh(None)
 
         stored = json.loads((app_support_folder / FEED_CACHE_FILE).read_text())
-        assert stored["feeds"][self.WORKING]["entries"] == [{"title": "New MR", "link": "https://gitlab.com/mr/New MR"}]
+        assert stored["feeds"][feed_cache_key(self.WORKING)]["entries"] == [
+            {"title": "New MR", "link": "https://gitlab.com/mr/New MR"}
+        ]
         # the broken feed keeps what it had before, the unparsable body is never stored
-        assert stored["feeds"][self.BROKEN]["entries"] == [{"title": "Old MR", "link": "https://gitlab.com/mr/Old MR"}]
+        assert stored["feeds"][feed_cache_key(self.BROKEN)]["entries"] == [
+            {"title": "Old MR", "link": "https://gitlab.com/mr/Old MR"}
+        ]
+        # neither feed url is in the file, and both of them carry a feed token. The merge
+        # request links are, and are not secret: they are the titles' targets in the menu.
+        assert "secret" not in (app_support_folder / FEED_CACHE_FILE).read_text()
 
     def test_the_warning_clears_when_the_feed_recovers(self):
         app = MergeRequestsMonitorApp()
