@@ -6,7 +6,9 @@ description: >-
 
 inputs:
   requirements-file:
-    description: Requirements file holding the build and runtime dependencies to install.
+    description: >-
+      Requirements file holding the build and runtime dependencies to install. Generated
+      file, never hand-edited -- see "Dependency management" in README.md.
     required: false
     default: requirements.txt
   smoke-test:

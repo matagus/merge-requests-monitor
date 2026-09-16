@@ -36,6 +36,33 @@ jobs:
       - name: Generate coverage report
         run: hatch run test.py${{ matrix.python-version }}:cov
 
+  # Asserts that uv.lock and requirements.txt both still derive from pyproject.toml's
+  # [project] dependencies, through the same pinned-uv environment as a developer's
+  # `hatch run deps:sync`. No macOS needed: this reads dependency metadata only, unlike
+  # the package job below. See "Dependency management" in README.md.
+  deps:
+    name: Dependencies in sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Assert derived files match pyproject.toml
+        run: |
+          if ! hatch run deps:check; then
+            echo "::error::uv.lock or requirements.txt is stale - run 'hatch run deps:sync' and commit the result"
+            exit 1
+          fi
+
   # Packaging regression check. The tests never touch setup.py/py2app, so until now a
   # broken bundle only surfaced when a version tag was pushed. Mirrors the release
   # workflow's interpreter (pinned to the same patch) and runs the same build/verify
