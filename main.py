@@ -1,4 +1,5 @@
 import configparser
+import functools
 import html
 import json
 import os
@@ -76,6 +77,17 @@ class MergeRequestsMonitorApp(rumps.App):
         word = "feeds" if len(numbers) > 1 else "feed"
         return f"{label} · ⚠️ {word} {', '.join(numbers)} failed (showing last known MRs)"
 
+    def merge_request_menu_item(self, merge_request):
+        """The menu item for a single merge request, with its own link bound into the callback.
+
+        The link has to travel with the item. A callback that reads the item's title instead has
+        to look the merge request back up by searching for that title, and two feeds can publish
+        entries under the same title: the search then ends on whichever of them was fetched first
+        and the second item opens the wrong merge request.
+        """
+        title = html.unescape(merge_request.title)
+        return rumps.MenuItem(title, callback=functools.partial(self.open_url, merge_request.link))
+
     def build_menu(self):
         self.menu.clear()
 
@@ -102,8 +114,7 @@ class MergeRequestsMonitorApp(rumps.App):
                 self.menu.add(rumps.MenuItem("Merge Requests"))
 
                 for merge_request in merge_requests:
-                    title = html.unescape(merge_request.title)
-                    self.menu.add(rumps.MenuItem(title, callback=self.open_url))
+                    self.menu.add(self.merge_request_menu_item(merge_request))
 
             if len(merge_requests) > 0 and len(draft_merge_requests) > 0:
                 self.menu.add(rumps.rumps.SeparatorMenuItem())
@@ -113,8 +124,7 @@ class MergeRequestsMonitorApp(rumps.App):
                 self.menu.add(rumps.MenuItem("Draft Merge Requests"))
 
                 for merge_request in draft_merge_requests:
-                    title = html.unescape(merge_request.title)
-                    self.menu.add(rumps.MenuItem(title, callback=self.open_url))
+                    self.menu.add(self.merge_request_menu_item(merge_request))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
         self.menu.add(rumps.MenuItem("Preferences", callback=self.set_preferences))
@@ -336,10 +346,13 @@ class MergeRequestsMonitorApp(rumps.App):
         self.timer.stop()
         rumps.quit_application(sender)
 
-    def open_url(self, sender):
-        for merge_req in self.merge_requests:
-            if html.unescape(merge_req.title) == sender.title:
-                webbrowser.open_new_tab(merge_req.link)
+    def open_url(self, link, sender=None):
+        """Open the link the clicked menu item was built for.
+
+        `sender` is the ``rumps.MenuItem`` rumps passes to every callback; it is ignored because
+        the link was chosen when the item was built, not looked up from its title.
+        """
+        webbrowser.open_new_tab(link)
 
     def set_refresh_interval(self, sender):
         sender.state = 1  # set the selected item as checked
