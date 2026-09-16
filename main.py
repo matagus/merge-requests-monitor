@@ -182,6 +182,11 @@ class MergeRequestsMonitorApp(rumps.App):
                     self.menu.add(self.merge_request_menu_item(merge_request))
 
         self.menu.add(rumps.rumps.SeparatorMenuItem())
+        # These three are wired here and nowhere else. @rumps.clicked would register the same
+        # method a second time, against a menu item found by title when the app starts running:
+        # a title that stops matching adds a phantom entry instead of failing, and the binding it
+        # makes points at whichever item existed then, not at the replacements build_menu puts
+        # there on every refresh.
         self.menu.add(rumps.MenuItem("Preferences", callback=self.set_preferences))
         self.menu.add(rumps.MenuItem("About", callback=self.about))
         self.menu.add(rumps.MenuItem("Quit", key="q", callback=self.quit_application))
@@ -396,7 +401,6 @@ class MergeRequestsMonitorApp(rumps.App):
         self.update_title()
         self.save_feed_cache()
 
-    @rumps.clicked("Preferences")
     def set_preferences(self, sender):
         response = rumps.Window(
             title="Set Preferences",
@@ -411,7 +415,6 @@ class MergeRequestsMonitorApp(rumps.App):
             self.save_config()
             self.refresh(None)
 
-    @rumps.clicked("Quit")
     def quit_application(self, sender=None):
         self.timer.stop()
         rumps.quit_application(sender)
@@ -451,7 +454,6 @@ class MergeRequestsMonitorApp(rumps.App):
         self.refresh_menu.title = f"Refresh Interval: {self.refresh_interval_label}"
         self.save_config()
 
-    @rumps.clicked("About")
     def about(self, _):
         rumps.alert(
             f"{APP_NAME}\n",

@@ -364,6 +364,22 @@ class TestMergeRequestsMonitorApp:
 
         assert not hasattr(app, "refresh_interval")
 
+    def test_callbacks_are_bound_where_the_menu_is_built(self):
+        """#204: the menu is the only place a callback is bound.
+
+        @rumps.clicked deferred a registration that ran when the app started, finding the item by
+        title and adding one when no title matched. Keeping both mechanisms meant two places had
+        to agree on every title, and the binding made there was to the item build_menu replaces
+        on the first refresh.
+        """
+        with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
+            app = MergeRequestsMonitorApp()
+
+        assert getattr(rumps.clicked, "*buttons", []) == []
+        assert app.menu["Preferences"].callback.__self__ is app
+        assert app.menu["About"].callback.__self__ is app
+        assert app.menu["Quit"].callback.__self__ is app
+
     def test_set_preferences(self):
         """Test setting preferences via dialog"""
         with patch("main.feedparser.parse", return_value=Mock(bozo=False, entries=[])):
