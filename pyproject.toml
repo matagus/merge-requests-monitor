@@ -25,9 +25,8 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development",
 ]
-# Single source of truth for the app's dependencies. uv.lock is derived from this list
-# by `uv lock` and requirements.txt from uv.lock by `uv export`; edit them only through
-# `hatch run deps:sync` (see [tool.hatch.envs.deps]), never by hand.
+# Single source of truth for the app's dependencies; uv.lock and requirements.txt are
+# derived from this list. See "Dependency management" in README.md.
 dependencies = [
   "feedparser==6.0.14",
   "py2app==0.28.10",
@@ -71,17 +70,24 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 app = "python main.py"
 
-# Regenerates the two derived dependency files from this manifest: `uv lock` refreshes
-# uv.lock from [project] dependencies, `uv export` rewrites requirements.txt from that
-# lockfile. Neither is hand-edited -- the CI `deps` job fails if either drifts -- so run
-# `hatch run deps:sync` whenever [project] dependencies change. `--no-hashes` because
-# rumps ships no wheel: emitting hashes would put pip into --require-hashes mode, which
-# then also demands hashes for that sdist's build-system requirements.
+# The derived dependency files, generated and verified through one pinned uv: CI's `deps`
+# job runs `hatch run deps:check` via this same environment, so the two cannot disagree
+# about the export layout. Bump `uv` here, then re-run `hatch run deps:sync`. See
+# "Dependency management" in README.md.
 [tool.hatch.envs.deps]
-dependencies = ["uv"]
+dependencies = ["uv==0.12.15"]
+env-vars = { UV_EXPORT_ARGS = "--frozen --no-emit-project --no-hashes --no-annotate" }
 
 [tool.hatch.envs.deps.scripts]
-sync = "uv lock && uv export --frozen --no-emit-project --no-hashes --no-annotate -o requirements.txt"
+sync = """
+uv lock && \
+uv export {env:UV_EXPORT_ARGS} -o requirements.txt
+"""
+check = """
+uv lock --check && \
+uv export {env:UV_EXPORT_ARGS} -o requirements.txt && \
+git diff --exit-code -- requirements.txt
+"""
 
 [tool.hatch.envs.test]
 dependencies = [

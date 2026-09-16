@@ -7,9 +7,8 @@ description: >-
 inputs:
   requirements-file:
     description: >-
-      Requirements file holding the build and runtime dependencies to install. It is
-      generated from pyproject.toml's [project] dependencies by `uv export`
-      (`hatch run deps:sync`) and is never hand-edited; the CI `deps` job fails on drift.
+      Requirements file holding the build and runtime dependencies to install. Generated
+      file, never hand-edited -- see "Dependency management" in README.md.
     required: false
     default: requirements.txt
   smoke-test:
