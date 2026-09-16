@@ -110,9 +110,6 @@ app = "python main.py"
 [tool.ruff]
 line-length = 120
 
-[tool.black]
-line-length = 120
-
 # The deliverable is the macOS .app bundle built by py2app (setup.py); the code
 # itself lives in the root-level main.py/__about__.py modules, there is no
 # importable package directory. `packages = ["mergerequestsmonitor"]` pointed at
